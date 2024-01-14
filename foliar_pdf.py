@@ -9,37 +9,36 @@ def foliar_pdf(archivo_entrada, archivo_salida):
         pdf_reader = PdfReader(file) # Crea un objeto PDFReader
         pdf_writer = PdfWriter()     # Crea un objeto PDFWriter
 
-        # Recorre todas las páginas del PDF de entrada
-        for num_pagina, page in enumerate(pdf_reader.pages):
-            # Obtén la página original
-            pagina_original = page
+        for num_pagina, page in enumerate(pdf_reader.pages):  # páginas del PDF de entrada
+            page_origin = page                                # Obtén la página original
+            page_size = page_origin.mediabox.upper_right      # Tamaño de página original
+            w, h = page_size                                  # width, high original
 
-            page_size = pagina_original.mediabox.upper_right
-            w, h = pagina_original.mediabox.upper_right
-            x = float(w - 37)
-            y = float(h - 36)
+            texto_num = str(len(pdf_reader.pages)-num_pagina) # texto de número de folio
+            font_h = 16                                       # tamaño de letra
+            w_num = len(texto_num)+(12*len(texto_num))        # Ancho de número (texto)
+            h_num = font_h+2                                  # altura de texto
 
-            texto_foliacion = str(len(pdf_reader.pages)-num_pagina)
+            pdf_num=canvas.Canvas("numerofolio.pdf")          # crar un pdf con el numero de folio.
+            pdf_num.setPageSize(page_size)                    # Tamaño de pagina del pdf
+            pdf_num.setFont("Times-Roman",font_h)             # Tipo de letra del texto
+            pdf_num.setFillColorRGB(0,0,0,1)                  # color de texto
+            if w>h:                                           # Comparación si ancho > alto
+                x = float(w - 37 - h_num)                     # calcula coordenada X
+                y = float(36 + w_num)                         # calcula coordenada y
+                pdf_num.translate(x,y)                        # traslada eje cartesiano a (x,y)
+                pdf_num.rotate(-90)                           # rotar para posicionar el texto
+                pdf_num.drawString(0,0,texto_num)             # inserta el texto (número de folio)
+            else:
+                x = float(w - 37 - w_num)                     # calcula coordenada X
+                y = float(h - 36 - h_num)                     # calcula coordenada y
+                pdf_num.drawString(x,y,texto_num)             # inserta el texto (número de folio)
+            pdf_num.save()                                    # guarda pdf con el texto (número de folio)
 
-            pdf_num=canvas.Canvas("numerofolio.pdf")
-            pdf_num.setPageSize(page_size)
-            pdf_num.setFont("Courier",14)
-            pdf_num.setFillColorRGB(0,0,0,1)
-            pdf_num.drawString(x,y,texto_foliacion)
-            pdf_num.save()
-            #pdf_num.showPage()
-            
-            with open('numerofolio.pdf', 'rb') as file2:
-                num_folio = PdfReader(file2)
-                page_num_folio = num_folio.pages[0]
-                pagina_original.merge_page(page_num_folio)
-                pdf_writer.add_page(pagina_original)
-            #w = len(texto_foliacion)+(12*len(texto_foliacion))
-            #h = font_h+2
-            #x = pagina_original.mediabox[2] - w - 37
-            #y = pagina_original.mediabox[3] - h - 36
-            
-            #pdf_writer.add_annotation(num_pagina,numtext) #Escribe el texto como comentario
+            num_folio = PdfReader('numerofolio.pdf')          # leer pdf creado
+            page_num_folio = num_folio.pages[0]               # extrae la primera página
+            page_origin.merge_page(page_num_folio)            # Unir pagina creada con la original
+            pdf_writer.add_page(page_origin)                  # agregar página al objeto PDFWriter
 
         # Abre un nuevo archivo PDF en modo de escritura binaria
         with open(archivo_salida, 'wb') as salida:
@@ -47,7 +46,7 @@ def foliar_pdf(archivo_entrada, archivo_salida):
             pdf_writer.write(salida)
 
 if __name__ == "__main__":
-    PDF_ENTRADA = "FICHAS DE TRABAJO1.pdf" # Nombre del archivo PDF a foliar.
-    PDF_SALIDA = "salida.pdf"     # Nombre del archivo PDF foliado.
+    PDF_ENTRADA = "FICHAS DE TRABAJO.pdf"                      # Nombre del archivo PDF a foliar.
+    PDF_SALIDA = "pdf_folio.pdf"                               # Nombre del archivo PDF foliado.
 
-    foliar_pdf(PDF_ENTRADA, PDF_SALIDA)
+    foliar_pdf(PDF_ENTRADA, PDF_SALIDA)                        # Función para foliar pdf

@@ -33,7 +33,7 @@ def foliar_pdf(archivo_entrada, archivo_salida):
                 x = float(w - 37 - w_num)                     # calcula coordenada X
                 y = float(h - 36 - h_num)                     # calcula coordenada y
                 pdf_num.drawString(x,y,texto_num)             # inserta el texto (número de folio)
-            pdf_num.save()                                    # guarda pdf con el texto (número de folio)
+            pdf_num.save()                                    # guarda pdf con el texto
 
             num_folio = PdfReader('numerofolio.pdf')          # leer pdf creado
             page_num_folio = num_folio.pages[0]               # extrae la primera página

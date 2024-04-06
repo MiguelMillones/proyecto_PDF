@@ -3,6 +3,7 @@ Proyecto que empezara desde crear hasta hacer un ejecutable con las opciones de 
 ## Instrucción:
 * Los documentos pdf deben de estar en la misma ruta que la del proyecto, de no ser así especificar la ruta de ubicación donde corresponda.
 ## Instalación de paquetes:
+Este proyecto se realizo en un entorno virtual con interprete python 3.11.0
 Para que los proyectos funcionen realizar la instalación de los módulos mediante el comando:
 * pip install -r ".\requirements.txt"
 ## Lista de proyectos:

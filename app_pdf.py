@@ -2,11 +2,11 @@
 import sys
 import re
 from reportlab.pdfgen import canvas
-from PyQt6.QtWidgets import (QApplication, QWidget, QLabel, QLineEdit, QPushButton, 
-                             QHBoxLayout, QVBoxLayout, QStackedLayout,QFileDialog,QMessageBox)
-from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt, QStandardPaths
 from PyPDF2 import PdfReader, PdfWriter
+from PyQt6.QtCore import Qt, QStandardPaths
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (QApplication, QWidget,QMainWindow,QTabWidget, QLabel, QLineEdit, QPushButton, 
+                             QHBoxLayout, QVBoxLayout,QFileDialog,QMessageBox)
 
 def foliar_pdf(archivo_entrada, archivo_salida,inicio_folio):
     """Función para foliar un archivo pdf y crear nuevo archivo PDF de salida"""
@@ -122,40 +122,55 @@ def save_file(self,name_output):
     return None
 
 
-class Ventana(QWidget):
+class Ventana(QMainWindow):
     """ clase para inicializar y estructurar las ventanas"""
     def __init__(self):
         super().__init__()
-        self.stacked_layout = QStackedLayout()
         self.input_pdf = ''
         self.input_pdf3 = ''
+        self.files = ''
         self.inicializar()
+        with open('estilos.css',"r") as archivo:
+            style=archivo.read()
+        self.setStyleSheet(style)
 
     def inicializar(self):
         """función para dar el tamaño y titulo de la ventana principal"""
-        self.setFixedSize(500,300)
+        self.setFixedSize(500,370)
         self.setWindowTitle("APP-PDF")
         self.generarventanas()
         self.show()
 
     def generarventanas(self):
-        """Función para generar el menu de las ventanas"""
-        boton_1 = QPushButton("Separar PDF")
-        boton_1.clicked.connect(self.ventana)
-        boton_2 = QPushButton("Unir PDF")
-        boton_2.clicked.connect(self.ventana)
-        boton_3 = QPushButton("Foliar PDF")
-        boton_3.clicked.connect(self.ventana)
-        boton_4 = QPushButton("About")
-        boton_4.clicked.connect(self.ventana)
 
-        union_boton = QHBoxLayout()
-        union_boton.addWidget(boton_1)
-        union_boton.addWidget(boton_2)
-        union_boton.addWidget(boton_3)
-        union_boton.addWidget(boton_4)
+        tab_opcion=QTabWidget(self)
+        self.separarOpcion=QWidget()
+        self.unirOpcion=QWidget()
+        self.foliarOpcion=QWidget()
+        self.aboutOpcion=QWidget()
 
-        #ventana 1
+        tab_opcion.addTab(self.separarOpcion,"SEPARAR")
+        tab_opcion.addTab(self.unirOpcion,"UNIR")
+        tab_opcion.addTab(self.unirOpcion,"UNIR")
+        tab_opcion.addTab(self.foliarOpcion,"FOLIAR")
+        tab_opcion.addTab(self.aboutOpcion,"ABOUT")
+
+        self.ventana_separar()
+        self.ventana_unir()
+        self.ventana_foliar()
+        self.ventana_about()
+
+        tab_ubication=QHBoxLayout()           
+        tab_ubication.addWidget(tab_opcion)
+
+        contenedor_tab = QWidget()              #se crea un Widget para QmainWindow
+        contenedor_tab.setLayout(tab_ubication)
+        self.setCentralWidget(contenedor_tab)
+        
+
+        # """Función para generar el menu de las ventanas"""
+        # #ventana 1
+    def ventana_separar(self):
         titulo = QLabel("SEPARAR PÁGINAS DE DOCUMENTOS PDF")
         titulo.setFont(QFont("Arial",16))
         titulo.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -195,9 +210,9 @@ class Ventana(QWidget):
         layouts_vertical.addLayout(layouts_horizon2)
         layouts_vertical.addWidget(botons1)
 
-        contenedor_1 = QWidget()
-        contenedor_1.setLayout(layouts_vertical)
+        self.separarOpcion.setLayout(layouts_vertical) #asignar layout a ventana separar
 
+    def ventana_unir(self):
         #ventana 2
         titulo_2 = QLabel("UNIR DOCUMENTOS PDF")
         titulo_2.setFont(QFont("Arial",18))
@@ -229,9 +244,9 @@ class Ventana(QWidget):
         layouts2_vertical.addLayout(layouts2_horizon2)
         layouts2_vertical.addWidget(botons2_2)
 
-        contenedor_2 = QWidget()
-        contenedor_2.setLayout(layouts2_vertical)
+        self.unirOpcion.setLayout(layouts2_vertical)
 
+    def ventana_foliar(self):
         #ventana 3
         titulo_3 = QLabel("FOLIAR DOCUMENTO PDF")
         titulo_3.setFont(QFont("Arial",18))
@@ -268,42 +283,24 @@ class Ventana(QWidget):
         layout3_vertical.addLayout(layouts3_horizon3)
         layout3_vertical.addWidget(botons3_2)
 
-        contenedor_3 = QWidget()
-        contenedor_3.setLayout(layout3_vertical)
+        self.foliarOpcion.setLayout(layout3_vertical)
 
+    def ventana_about(self):
         #ventana 4
-        titulo_4 = QLabel("About")
-        titulo_4.setFont(QFont("Arial",18))
+        titulo_4 = QLabel("APP-PDF\n\nVersion 1.0.0\nThis is a sample application made with PyQt6.\n\n"
+                          "Author: Miguel Millones\n"
+                          "Copyright © 2024 Miguel Angel\n\n"
+                          "For more information, visit our website:\n"
+                          "https://github.com/MiguelMillones/proyecto_PDF\n\n"
+                          "License: MIT License\n\n"
+                          "Contact: support@example.com")
+        titulo_4.setFont(QFont("Arial",12))
         titulo_4.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout_4 = QVBoxLayout()
         layout_4.addWidget(titulo_4)
 
-        contenedor_4 = QWidget()
-        contenedor_4.setLayout(layout_4)
-
-        #self.stacked_layout = QStackedLayout()
-        self.stacked_layout.addWidget(contenedor_1)
-        self.stacked_layout.addWidget(contenedor_2)
-        self.stacked_layout.addWidget(contenedor_3)
-        self.stacked_layout.addWidget(contenedor_4)
-
-        menu_layout = QVBoxLayout()
-        menu_layout.addLayout(union_boton)
-        menu_layout.addLayout(self.stacked_layout)
-        self.setLayout(menu_layout)
-
-    def ventana(self):
-        """Función para mostrar la ventana cuando se de click al menú"""
-        boton = self.sender()
-        if boton.text().lower() == 'separar pdf':
-            self.stacked_layout.setCurrentIndex(0)
-        elif boton.text().lower() == 'unir pdf':
-            self.stacked_layout.setCurrentIndex(1)
-        elif boton.text().lower() == 'foliar pdf':
-            self.stacked_layout.setCurrentIndex(2)
-        elif boton.text().lower() == 'about':
-            self.stacked_layout.setCurrentIndex(3)
+        self.aboutOpcion.setLayout(layout_4)
 
     def selec_archivo(self):
         """Función para seleccionar documento PDF"""

@@ -137,7 +137,7 @@ class Ventana(QMainWindow):
     def inicializar(self):
         """función para dar el tamaño y titulo de la ventana principal"""
         self.setFixedSize(500,370)
-        self.setWindowTitle("APP-PDF")
+        self.setWindowTitle("PDF-SUF")
         self.generarventanas()
         self.show()
 
@@ -287,7 +287,7 @@ class Ventana(QMainWindow):
 
     def ventana_about(self):
         #ventana 4
-        titulo_4 = QLabel("APP-PDF\n\nVersion 1.0.0\nThis is a sample application made with PyQt6.\n\n"
+        titulo_4 = QLabel("PDF-SUF\n\nVersion 1.0.0\nThis is a sample application made with PyQt6.\n\n"
                           "Author: Miguel Millones\n"
                           "Copyright © 2024 Miguel Angel\n\n"
                           "For more information, visit our website:\n"

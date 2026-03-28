@@ -1,114 +1,13 @@
 """Mi App para trabajar documentos PDF con pyqt6"""
 import sys
 import re
-from reportlab.pdfgen import canvas
-from PyPDF2 import PdfReader, PdfWriter
 from PyQt6.QtCore import Qt, QStandardPaths
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (QApplication, QWidget,QMainWindow,QTabWidget, QLabel, QLineEdit, QPushButton, 
                              QHBoxLayout, QVBoxLayout,QFileDialog,QMessageBox)
-
-def foliar_pdf(archivo_entrada, archivo_salida,inicio_folio):
-    """Función para foliar un archivo pdf y crear nuevo archivo PDF de salida"""
-    try:
-        # Abre el archivo PDF de entrada en modo de lectura binaria
-        with open(archivo_entrada, 'rb') as file:
-            pdf_reader = PdfReader(file) # Crea un objeto PDFReader
-            pdf_writer = PdfWriter()     # Crea un objeto PDFWriter
-
-            fin_folio = len(pdf_reader.pages) + inicio_folio -1
-
-            for _, page in enumerate(pdf_reader.pages):  # páginas del PDF de entrada
-                page_origin = page                                # Obtén la página original
-                page_size = page_origin.mediabox.upper_right      # Tamaño de página original
-                w, h = page_size                                  # width, high original
-
-                num_pagina =fin_folio
-                texto_num = str(num_pagina)#str(len(pdf_reader.pages)-num_pagina) # texto de número de folio
-                font_h = 16                                       # tamaño de letra
-                w_num = len(texto_num)+(12*len(texto_num))        # Ancho de número (texto)
-                h_num = font_h+2                                  # altura de texto
-                fin_folio -=1
-
-                pdf_num=canvas.Canvas("numerofolio.pdf")          # crar un pdf con el numero de folio.
-                pdf_num.setPageSize(page_size)                    # Tamaño de pagina del pdf
-                pdf_num.setFont("Times-Roman",font_h)             # Tipo de letra del texto
-                pdf_num.setFillColorRGB(0,0,0,1)                  # color de texto
-                if w>h:                                           # Comparación si ancho > alto
-                    x = float(w - 37 - h_num)                     # calcula coordenada X
-                    y = float(36 + w_num)                         # calcula coordenada y
-                    pdf_num.translate(x,y)                        # traslada eje cartesiano a (x,y)
-                    pdf_num.rotate(-90)                           # rotar para posicionar el texto
-                    pdf_num.drawString(0,0,texto_num)             # inserta el texto (número de folio)
-                else:
-                    x = float(w - 37 - w_num)                     # calcula coordenada X
-                    y = float(h - 36 - h_num)                     # calcula coordenada y
-                    pdf_num.drawString(x,y,texto_num)             # inserta el texto (número de folio)
-                pdf_num.save()                                    # guarda pdf con el texto
-
-                num_folio = PdfReader('numerofolio.pdf')          # leer pdf creado
-                page_num_folio = num_folio.pages[0]               # extrae la primera página
-                page_origin.merge_page(page_num_folio)            # Unir pagina creada con la original
-                pdf_writer.add_page(page_origin)                  # agregar página al objeto PDFWriter
-
-            # Abre un nuevo archivo PDF en modo de escritura binaria
-            with open(archivo_salida, 'wb') as salida:
-                # Escribe el contenido del objeto PDFWriter en el nuevo archivo PDF
-                pdf_writer.write(salida)
-        return True
-    
-    except Exception as e:
-        print(f"Error al foliar el documento pdf: {e}")
-        return False
-
-
-def unir_pdf(files, output_file):
-    """Función para recorrer las páginas y unir los PDF"""
-    try:
-        pdf_writer = PdfWriter()                   # Crea un objeto PDFWriter
-
-        for document in files:                     # Recorre los archivos PDF
-            with open(document, 'rb') as file:     # Abre los archivos en modo de lectura binaria
-                pdf_reader = PdfReader(file)       # Crea objetos PDFReader
-
-                for page_num, _ in enumerate(pdf_reader.pages): # recorre las paginas y las enumera
-                    page = pdf_reader.pages[page_num]           # Lee la página y se guarda en page
-                    pdf_writer.add_page(page)                   # Agrega las páginas al escritor
-
-        with open(output_file, 'wb') as output_doc:  # crea un nuevo archivo PDF en modo binario
-            pdf_writer.write(output_doc)             # Guarda las páginas en el archivo de salida
-        
-        return True
-    except Exception as e:
-        print(f"Error al unir los documentos: {e}")
-        return False
-
-def separar_paginas(pdf_input, pdf_output, paginas_a_separar):
-    """Función para separar las páginas"""
-    try:
-        # Abre el archivo PDF de entrada en modo binario
-        with open(pdf_input, 'rb') as file:
-            pdf_reader = PdfReader(file)        # Crea un objeto de lector de PDF
-            pdf_writer = PdfWriter()            # Crea un objeto de escritor de PDF
-
-            total_page = len(pdf_reader.pages)
-
-            for pagina_num in paginas_a_separar:      # Recorre las páginas que se quieren separar
-                if pagina_num<=total_page:
-                    pdf_writer.add_page(pdf_reader.pages[pagina_num - 1]) # Agrega páginas al objeto
-                else:
-                    print('numero de pagina no se encuntra en achivo')
-                    return False  # Página no existe
-
-            # Crea un nuevo archivo PDF de salida en modo binario
-            with open(pdf_output, 'wb') as output_file:
-                pdf_writer.write(output_file)   # Escribe las páginas en el nuevo archivo PDF
-
-        print(f'Se han separado las páginas {paginas_a_separar} en el archivo {pdf_output}.')
-        return True # Páginas separadas correctamente
-    except Exception as e:
-        print(f"Error al separar páginas: {e}")
-        return False
+from pdf.extraer import extraer_paginas
+from pdf.unir import unir_pdf
+from pdf.foliar import foliar_pdf
 
 def save_file(self,name_output):
     """Función para guardar documento PDF"""
@@ -130,7 +29,7 @@ class Ventana(QMainWindow):
         self.input_pdf3 = ''
         self.files = ''
         self.inicializar()
-        with open('estilos.css',"r") as archivo:
+        with open('assets/estilos.css',"r") as archivo:
             style=archivo.read()
         self.setStyleSheet(style)
 
@@ -144,18 +43,17 @@ class Ventana(QMainWindow):
     def generarventanas(self):
 
         tab_opcion=QTabWidget(self)
-        self.separarOpcion=QWidget()
+        self.extraerOpcion=QWidget()
         self.unirOpcion=QWidget()
         self.foliarOpcion=QWidget()
         self.aboutOpcion=QWidget()
 
-        tab_opcion.addTab(self.separarOpcion,"SEPARAR")
-        tab_opcion.addTab(self.unirOpcion,"UNIR")
+        tab_opcion.addTab(self.extraerOpcion,"EXTRAER")
         tab_opcion.addTab(self.unirOpcion,"UNIR")
         tab_opcion.addTab(self.foliarOpcion,"FOLIAR")
         tab_opcion.addTab(self.aboutOpcion,"ABOUT")
 
-        self.ventana_separar()
+        self.ventana_extraer()
         self.ventana_unir()
         self.ventana_foliar()
         self.ventana_about()
@@ -165,13 +63,14 @@ class Ventana(QMainWindow):
 
         contenedor_tab = QWidget()              #se crea un Widget para QmainWindow
         contenedor_tab.setLayout(tab_ubication)
+        
         self.setCentralWidget(contenedor_tab)
         
 
         # """Función para generar el menu de las ventanas"""
         # #ventana 1
-    def ventana_separar(self):
-        titulo = QLabel("SEPARAR PÁGINAS DE DOCUMENTOS PDF")
+    def ventana_extraer(self):
+        titulo = QLabel("extraer PÁGINAS DE DOCUMENTOS PDF")
         titulo.setFont(QFont("Arial",16))
         titulo.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
@@ -183,13 +82,13 @@ class Ventana(QMainWindow):
         labels1.setFont(QFont("Arial",12))
         self.labels1_1 = QLabel("nombre de archivo seleccionado")
         self.labels1_1.setFont(QFont("Arial",10))
-        labels2 = QLabel("Ingresar las páginas a separar (separadas por comas):")
+        labels2 = QLabel("Ingresar las páginas a extraer (separadas por comas):")
         labels2.setFont(QFont("Arial",12))
-        labels3 = QLabel("Páginas a separar:")
+        labels3 = QLabel("Páginas a extraer:")
         labels3.setFont(QFont("Arial",12))
         self.pages_sep = QLineEdit()
-        botons1 = QPushButton("Separar páginas")
-        botons1.clicked.connect(self.separar)
+        botons1 = QPushButton("extraer páginas")
+        botons1.clicked.connect(self.extraer)
 
         layouts_vertical = QVBoxLayout()
         layouts_horizon = QHBoxLayout()
@@ -210,7 +109,7 @@ class Ventana(QMainWindow):
         layouts_vertical.addLayout(layouts_horizon2)
         layouts_vertical.addWidget(botons1)
 
-        self.separarOpcion.setLayout(layouts_vertical) #asignar layout a ventana separar
+        self.extraerOpcion.setLayout(layouts_vertical) #asignar layout a ventana extraer
 
     def ventana_unir(self):
         #ventana 2
@@ -316,36 +215,36 @@ class Ventana(QMainWindow):
         else:
             QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
 
-    def separar(self):
-        """función para separar las paginas"""
+    def extraer(self):
+        """función para extraer las paginas"""
         pdf_input = self.input_pdf               # Nombre del doc PDF de entrada
-        name_pdfseparar='Páginas_separadas.pdf'# Nombre del nuevo doc PDF (páginas separadas)
-        paginas_a_separar = self.pages_sep.text()
+        name_pdfextraer='Páginas_separadas.pdf'# Nombre del nuevo doc PDF (páginas separadas)
+        paginas_a_extraer = self.pages_sep.text()
 
         if pdf_input=='':
             QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
             return
 
-        if paginas_a_separar==['']:
+        if paginas_a_extraer==['']:
             QMessageBox.critical(self, 'Error',
-                                 'Por favor, ingresa al menos una página para separar.')
+                                 'Por favor, ingresa al menos una página para extraer.')
             return
 
         # Verificar que las páginas ingresadas consistan solo en números y comas
-        if not re.match(r'^\d+(,\d+)*$', paginas_a_separar):
+        if not re.match(r'^\d+(,\d+)*$', paginas_a_extraer):
             QMessageBox.critical(self,'Error',
                                  'Por favor, ingresa páginas válidas (números separados por comas).')
             return
         
-        pdf_output = save_file(self,name_pdfseparar)    # Nombre del nuevo doc PDF
+        pdf_output = save_file(self,name_pdfextraer)    # Nombre del nuevo doc PDF
         if pdf_output is None:
             QMessageBox.critical(self,'Error','No se guardo el nombre del nuevo documento PDF')
             return
 
-        paginas_a_separar = paginas_a_separar.split(',')
-        paginas_a_separar = list(map(int,paginas_a_separar))
+        paginas_a_extraer = paginas_a_extraer.split(',')
+        paginas_a_extraer = list(map(int,paginas_a_extraer))
 
-        if separar_paginas(pdf_input,pdf_output,paginas_a_separar):
+        if extraer_paginas(pdf_input,pdf_output,paginas_a_extraer): #llama a la funcion 
             QMessageBox.information(self, 'Éxito', 'Páginas separadas correctamente!')
         else:
             QMessageBox.critical(self, 'Error',

@@ -12,7 +12,7 @@ def extraer_paginas(pdf_input, pdf_output, paginas_a_extraer):
             total_page = len(pdf_reader.pages)
 
             for pagina_num in paginas_a_extraer:      # Recorre las páginas que se quieren extraer
-                if pagina_num<=total_page:
+                if 1 <= pagina_num <= total_page:
                     pdf_writer.add_page(pdf_reader.pages[pagina_num - 1]) # Agrega páginas al objeto
                 else:
                     print('numero de pagina no se encuntra en achivo')

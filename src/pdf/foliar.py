@@ -6,7 +6,7 @@ from io import BytesIO
 from copy import copy
 
 def foliar_pdf(archivo_entrada, archivo_salida,inicio_folio):
-    """Función para foliar un archivo pdf y crear nuevo archivo PDF de salida"""
+    """Foliar PDF desde la última página hacia la primera"""
     try:
         # Abre el archivo PDF de entrada en modo de lectura binaria
         with open(archivo_entrada, 'rb') as file:
@@ -21,9 +21,8 @@ def foliar_pdf(archivo_entrada, archivo_salida,inicio_folio):
                 w, h = page_size                                  # width, high original
 
                 num_pagina =fin_folio
-                texto_num = str(num_pagina)#str(len(pdf_reader.pages)-num_pagina) # texto de número de folio
+                texto_num = str(num_pagina)
                 font_h = 16                                       # tamaño de letra
-                #w_num = len(texto_num)+(12*len(texto_num))        # Ancho de número (texto)
                 w_num = int(stringWidth(texto_num, "Times-Roman", font_h))
                 h_num = font_h+2                                  # altura de texto
                 fin_folio -=1

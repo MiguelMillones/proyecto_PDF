@@ -10,9 +10,8 @@ def unir_pdf(files, output_file):
             with open(document, 'rb') as file:     # Abre los archivos en modo de lectura binaria
                 pdf_reader = PdfReader(file)       # Crea objetos PDFReader
 
-                for page_num, _ in enumerate(pdf_reader.pages): # recorre las paginas y las enumera
-                    page = pdf_reader.pages[page_num]           # Lee la página y se guarda en page
-                    pdf_writer.add_page(page)                   # Agrega las páginas al escritor
+                for page in pdf_reader.pages: 
+                    pdf_writer.add_page(page)                   
 
         with open(output_file, 'wb') as output_doc:  # crea un nuevo archivo PDF en modo binario
             pdf_writer.write(output_doc)             # Guarda las páginas en el archivo de salida

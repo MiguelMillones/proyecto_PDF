@@ -44,7 +44,7 @@ QPushButton {
     border-radius: 8px;
 }
 QPushButton:hover{
-    background-color: #b3ebb5;
+    background-color: #b3ebcc;
 }
 QLabel {
     color: #0c0c0c; 

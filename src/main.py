@@ -1,344 +1,715 @@
-"""Mi App para trabajar documentos PDF con pyqt6"""
+"""
+Mi App para trabajar documentos PDF con pyqt6
+Versión con soporte para PyInstaller
+"""
 import sys
-import re
+import os
+from pathlib import Path
+from typing import Optional, List
+
 from PyQt6.QtCore import Qt, QStandardPaths
-from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import (QApplication, QWidget,QMainWindow,QTabWidget, QLabel, QLineEdit, QPushButton, 
-                             QHBoxLayout, QVBoxLayout,QFileDialog,QMessageBox)
+from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtWidgets import (
+    QApplication, QWidget,QMainWindow,QTabWidget, QLabel, 
+    QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
+    QFileDialog,QMessageBox, QTextEdit, QGroupBox
+)
+
+# módulos PDF
 from pdf.extraer import extraer_paginas
 from pdf.unir import unir_pdf
 from pdf.foliar import foliar_pdf
 
-def save_file(self,name_output):
-    """Función para guardar documento PDF"""
-    option = QFileDialog.Option.DontUseNativeDialog
-    init_dir = name_output
-    filetypes = "Archivos PDF (*.pdf);;All files(*)"
-    save_name, _ = QFileDialog.getSaveFileName(self,"Save File",init_dir,filetypes, options=option)
+# Importar utilidades de rutas
+from utils.path_utils import ResourcePath, ConfigPaths
 
-    if save_name:
-        return save_name
-    return None
 
+class PDFUtils:
+    """Clase para operaciones comunes con PDF"""
+
+    @staticmethod
+    def validate_pdf_file(file_path: str) -> bool:
+        """validar que el archivo existe y es un PDF"""
+        if not file_path:
+            return False
+        path = Path(file_path)
+        return path.exists() and path.suffix.lower() == '.pdf'
+    
+    @staticmethod
+    def validate_page_range(pages_str: str) -> Optional[List[int]]:
+        """
+        Valida y convertir string de páginas a listas de enteros
+        Ejemplos válidos: "1,2,3", "1-5", "1,3-5,7"
+        """
+        if not pages_str or not pages_str.strip():
+            return None
+        
+        pages = set()
+        parts = pages_str.split(',')
+
+        for part in parts:
+            part = part.strip()
+            if '-' in part:
+                # Rango de páginas
+                try:
+                    start, end = map(int, part.split('-'))
+                    if start > end:
+                        start, end = end, start
+                    pages.update(range(start, end + 1))
+                except ValueError:
+                    return None
+            else:
+                # Página individual
+                try:
+                    pages.add(int(part))
+                except ValueError:
+                    return None
+
+        return sorted(pages)
+
+    @staticmethod
+    def validate_positive_integer(value: str) -> Optional[int]:
+        """Validar que el string sea un número entero positivo"""
+        if not value or not value.strip():
+            return None
+        try:
+            num = int(value)
+            if num < 1:
+                return None
+            return num
+        except ValueError:
+            return None
+    
+class SaveFileDialog:
+    """Para guardar archivo"""
+    @staticmethod
+    def get_save_path(parent: QWidget, default_name: str = "documento.pdf") -> Optional[str]:
+        """
+        Abrir diálogo para guardar archivo
+        Returns: Ruta del archivo o None si se cancela
+        """
+        options = QFileDialog.Option.DontUseNativeDialog
+        init_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        filetypes = "Archivos PDF (*.pdf);;Todos los archivos (*)"
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            parent,"Guardar archivo",
+            os.path.join(init_dir, default_name),
+            filetypes,options=options
+        )
+
+        return save_path if save_path else None
 
 class Ventana(QMainWindow):
     """ clase para inicializar y estructurar las ventanas"""
+
     def __init__(self):
         super().__init__()
-        self.input_pdf = ''
-        self.input_pdf3 = ''
-        self.files = ''
+
+        # Variables de estado
+        self.input_pdf_extract: Optional[str] = None
+        self.input_pdf_foliar: Optional[str] = None
+        self.files_to_merge: List[str] = []
+
+        # initialize UI
         self.inicializar()
-        with open('assets/estilos.css',"r") as archivo:
-            style=archivo.read()
-        self.setStyleSheet(style)
+
+        # load styles
+        self.cargar_estilos()
 
     def inicializar(self):
         """función para dar el tamaño y titulo de la ventana principal"""
-        self.setFixedSize(500,370)
-        self.setWindowTitle("PDF-SUF")
+        self.setFixedSize(550,450)
+        self.setWindowTitle("DocTriX")
+
+        # Configure icono con manejo de rutas para PyInstaller
+        self.load_icono()
+        
         self.generarventanas()
         self.show()
 
+    def load_icono(self):
+        """Cargar icono de la aplicación con soporte para PyInstaller"""
+        # Intentar diferentes rutas para el icono
+        icon_paths = [
+            ResourcePath.get_asset_path("icon.png"),      # PNG para Linux/macOS
+            ResourcePath.get_asset_path("icon.ico"),      # ICO para Windows
+            Path("assets/icon.png"),                      # Ruta relativa (desarrollo)
+            Path("assets/icon.ico"),                      # Ruta relativa (desarrollo)
+        ]
+        
+        for icon_path in icon_paths:
+            if icon_path.exists():
+                try:
+                    self.setWindowIcon(QIcon(str(icon_path)))
+                    print(f"✅ Icono cargado desde: {icon_path}")
+                    return
+                except Exception as e:
+                    print(f"⚠️ Error cargando icono desde {icon_path}: {e}")
+        
+        print("⚠️ No se encontró el icono de la aplicación")
+
+    def cargar_estilos(self):
+        """Cargar archivo CSS de estilos con soporte para PyInstaller"""
+        try:
+            # Intentar diferentes rutas para el CSS
+            css_paths = [
+                ResourcePath.get_asset_path("estilos.css"),  # Ruta empaquetada
+                Path(__file__).parent.parent / "assets" / "estilos.css",  # Ruta desarrollo
+                Path("assets/estilos.css"),                   # Ruta relativa
+            ]
+            
+            css_file = None
+            for path in css_paths:
+                if path.exists():
+                    css_file = path
+                    break
+            
+            if css_file:
+                with open(css_file, "r", encoding='utf-8') as archivo:
+                    style = archivo.read()
+                self.setStyleSheet(style)
+                print(f"✅ Estilos cargados desde: {css_file}")
+            else:
+                # Estilos por defecto si no existe archivo
+                self.setStyleSheet(self._get_default_styles())
+                print("⚠️ Usando estilos por defecto")
+                
+        except Exception as e:
+            print(f"❌ Error cargando estilos: {e}")
+            self.setStyleSheet(self._get_default_styles())
+
+    def _get_default_styles(self) -> str:
+        """Estilos por defecto de la aplicación"""
+        return """
+            QMainWindow {
+                background-color: #f0f0f0;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+            QLineEdit {
+                padding: 5px;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #4CAF50;
+            }
+            QLabel {
+                color: #333;
+            }
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+            QTabWidget::pane {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+            QTabBar::tab {
+                padding: 8px 16px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #4CAF50;
+                color: white;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #e0e0e0;
+            }
+            QProgressBar {
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 3px;
+            }
+            QTextEdit {
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 4px;
+            }
+        """
+
     def generarventanas(self):
+        """Crear las pestañas de la aplicación"""
+        tab_option=QTabWidget(self)
 
-        tab_opcion=QTabWidget(self)
-        self.extraerOpcion=QWidget()
-        self.unirOpcion=QWidget()
-        self.foliarOpcion=QWidget()
-        self.aboutOpcion=QWidget()
+        # Crear widgets para cada pestaña
+        self.extractOption=QWidget()
+        self.mergeOption=QWidget()
+        self.foliarOption=QWidget()
+        self.aboutOption=QWidget()
 
-        tab_opcion.addTab(self.extraerOpcion,"EXTRAER")
-        tab_opcion.addTab(self.unirOpcion,"UNIR")
-        tab_opcion.addTab(self.foliarOpcion,"FOLIAR")
-        tab_opcion.addTab(self.aboutOpcion,"ABOUT")
+        # Configurar pestañas
+        self.tab_extract()
+        self.tab_merge()
+        self.tab_foliar()
+        self.tab_about()
 
-        self.ventana_extraer()
-        self.ventana_unir()
-        self.ventana_foliar()
-        self.ventana_about()
+        # Agregar pestañas
+        tab_option.addTab(self.extractOption,"📄 EXTRAER")
+        tab_option.addTab(self.mergeOption,"🔗 UNIR")
+        tab_option.addTab(self.foliarOption,"🔢 FOLIAR")
+        tab_option.addTab(self.aboutOption,"ℹ️ ABOUT")
 
-        tab_ubication=QHBoxLayout()           
-        tab_ubication.addWidget(tab_opcion)
+        # Configurar layout principal
+        layout_principal=QHBoxLayout()           
+        layout_principal.addWidget(tab_option)
 
         contenedor_tab = QWidget()              #se crea un Widget para QmainWindow
-        contenedor_tab.setLayout(tab_ubication)
-        
+        contenedor_tab.setLayout(layout_principal)
         self.setCentralWidget(contenedor_tab)
         
+        #ventana 1
+    def tab_extract(self):
+        """Configurar pestaña de extracción"""
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
 
-        # """Función para generar el menu de las ventanas"""
-        # #ventana 1
-    def ventana_extraer(self):
-        titulo = QLabel("extraer PÁGINAS DE DOCUMENTOS PDF")
-        titulo.setFont(QFont("Arial",16))
+        # Título
+        titulo = QLabel("📄 Extraer Páginas de PDF")
+        titulo.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         titulo.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(titulo)
 
-        labels = QLabel("Seleccionar  un archivo PDF:")
-        labels.setFont(QFont("Arial",12))
-        botons = QPushButton("Seleccionar Archivo")
-        botons.clicked.connect(self.selec_archivo)
-        labels1 = QLabel("Archivo PDF:")
-        labels1.setFont(QFont("Arial",12))
-        self.labels1_1 = QLabel("nombre de archivo seleccionado")
-        self.labels1_1.setFont(QFont("Arial",10))
-        labels2 = QLabel("Ingresar las páginas a extraer (separadas por comas):")
-        labels2.setFont(QFont("Arial",12))
-        labels3 = QLabel("Páginas a extraer:")
-        labels3.setFont(QFont("Arial",12))
-        self.pages_sep = QLineEdit()
-        botons1 = QPushButton("extraer páginas")
-        botons1.clicked.connect(self.extraer)
+        # Grupo de selección de archivo
+        grupo_archivo = QGroupBox("Archivo de entrada")
+        grupo_layout = QVBoxLayout()
 
-        layouts_vertical = QVBoxLayout()
-        layouts_horizon = QHBoxLayout()
-        layouts_horizon1 = QHBoxLayout()
-        layouts_horizon2 = QHBoxLayout()
+        # Selección de archivo
+        hbox1 = QHBoxLayout()
+        label_select = QLabel("Seleccionar archivo PDF:")
+        label_select.setFont(QFont("Arial", 10))
+        boton_select = QPushButton("📂 Buscar archivo")
+        boton_select.clicked.connect(self.select_file_extract)
+        hbox1.addWidget(label_select)
+        hbox1.addWidget(boton_select)
+        hbox1.addStretch()
+        grupo_layout.addLayout(hbox1)
 
-        layouts_horizon.addWidget(labels)
-        layouts_horizon.addWidget(botons)
-        layouts_horizon1.addWidget(labels1)
-        layouts_horizon1.addWidget(self.labels1_1)
-        layouts_horizon2.addWidget(labels3)
-        layouts_horizon2.addWidget(self.pages_sep)
+        # Mostrar archivo seleccionado
+        hbox2 = QHBoxLayout()
+        hbox2.addWidget(QLabel("Archivo:"))
+        self.label_file_extract = QLabel("Ningún archivo seleccionado")
+        self.label_file_extract.setStyleSheet("color: #666; font-style: italic;")
+        hbox2.addWidget(self.label_file_extract)
+        hbox2.addStretch()
+        grupo_layout.addLayout(hbox2)
 
-        layouts_vertical.addWidget(titulo)
-        layouts_vertical.addLayout(layouts_horizon)
-        layouts_vertical.addLayout(layouts_horizon1)
-        layouts_vertical.addWidget(labels2)
-        layouts_vertical.addLayout(layouts_horizon2)
-        layouts_vertical.addWidget(botons1)
+        grupo_archivo.setLayout(grupo_layout)
+        layout.addWidget(grupo_archivo)
+        
+        # Grupo de páginas a extraer
+        group_pages = QGroupBox("Páginas a extraer")
+        pages_layout = QVBoxLayout()
 
-        self.extraerOpcion.setLayout(layouts_vertical) #asignar layout a ventana extraer
+        label_instruction = QLabel(
+            "Ingrese las páginas a extraer (ejemplos válidos):\n"
+            "Páginas individuales: 1,3,5\n"
+            "Rango de páginas: 1-5\n"
+            "Combinación: 1,3-5,7\n"
+        )
+        label_instruction.setFont(QFont("Arial",9))
+        label_instruction.setStyleSheet("color: #666;")
+        pages_layout.addWidget(label_instruction)
 
-    def ventana_unir(self):
-        #ventana 2
-        titulo_2 = QLabel("UNIR DOCUMENTOS PDF")
-        titulo_2.setFont(QFont("Arial",18))
-        titulo_2.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        labels2_1 = QLabel("Seleccionar  los archivos PDF:")
-        labels2_1.setFont(QFont("Arial",12))
-        botons2_1 = QPushButton("Seleccionar Archivos")
-        botons2_1.clicked.connect(self.selec_archivos)
-        labels2_2 = QLabel("Archivos PDF:")
-        labels2_2.setFont(QFont("Arial",12))
-        labels2_2.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        self.labels2_3 = QLabel("nombres de archivos seleccionados")
-        self.labels2_3.setFont(QFont("Arial",10))
-        self.labels2_3.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        botons2_2 = QPushButton("Unir documentos")
-        botons2_2.clicked.connect(self.unir)
+        hbox_pages = QHBoxLayout()
+        hbox_pages.addWidget(QLabel("Páginas:"))
+        self.pages_input = QLineEdit()
+        self.pages_input.setPlaceholderText("Ej: 1,3-5,7")
+        hbox_pages.addWidget(self.pages_input)
+        pages_layout.addLayout(hbox_pages)
 
-        layouts2_vertical = QVBoxLayout()
-        layouts2_horizon1 = QHBoxLayout()
-        layouts2_horizon2 = QHBoxLayout()
+        group_pages.setLayout(pages_layout)
+        layout.addWidget(group_pages)
+        
+        # Botón de extraer
+        btn_extract = QPushButton("✅ Extraer páginas")
+        btn_extract.clicked.connect(self.extract_pages)
+        btn_extract.setMinimumHeight(40)
+        layout.addWidget(btn_extract)
+        
+        layout.addStretch()        
+        self.extractOption.setLayout(layout) #asignar layout a ventana extraer
 
-        layouts2_horizon1.addWidget(labels2_1)
-        layouts2_horizon1.addWidget(botons2_1)
-        layouts2_horizon2.addWidget(labels2_2)
-        layouts2_horizon2.addWidget(self.labels2_3)
+    def tab_merge(self):
+        """Configurar pestaña de unión"""
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
 
-        layouts2_vertical.addWidget(titulo_2)
-        layouts2_vertical.addLayout(layouts2_horizon1)
-        layouts2_vertical.addLayout(layouts2_horizon2)
-        layouts2_vertical.addWidget(botons2_2)
+        # Título
+        titulo = QLabel("🔗 Unir Documentos PDF")
+        titulo.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(titulo)
 
-        self.unirOpcion.setLayout(layouts2_vertical)
+        # Grupo de selección de archivos
+        group_files = QGroupBox("Archivos a unir")
+        files_layout = QVBoxLayout()
 
-    def ventana_foliar(self):
-        #ventana 3
-        titulo_3 = QLabel("FOLIAR DOCUMENTO PDF")
-        titulo_3.setFont(QFont("Arial",18))
-        titulo_3.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        labels3_1 = QLabel("Seleccionar  un archivo PDF:")
-        labels3_1.setFont(QFont("Arial",12))
-        botons3_1 = QPushButton("Seleccionar Archivo")
-        botons3_1.clicked.connect(self.selec_archivof)
-        labels3_2 = QLabel("Archivo PDF:")
-        labels3_2.setFont(QFont("Arial",12))
-        self.labels3_3 = QLabel("nombre de archivo seleccionado")
-        self.labels3_3.setFont(QFont("Arial",10))
-        labels3_4 = QLabel("Número de inicio de folio:")
-        labels3_4.setFont(QFont("Arial",12))
+        # Botón seleccionar
+        hbox1 = QHBoxLayout()
+        btn_select = QPushButton("📂 Seleccionar archivos")
+        btn_select.clicked.connect(self.select_files_merge)
+        hbox1.addWidget(btn_select)
+        hbox1.addStretch()
+        files_layout.addLayout(hbox1)
+
+        #  Lista de archivos seleccionados
+        files_layout.addWidget(QLabel("Archivos seleccionados:"))
+        self.lbl_files_merge = QTextEdit()
+        self.lbl_files_merge.setReadOnly(True)
+        self.lbl_files_merge.setMaximumHeight(150)
+        self.lbl_files_merge.setPlaceholderText("No hay archivos seleccionados")
+        files_layout.addWidget(self.lbl_files_merge)
+
+        group_files.setLayout(files_layout)
+        layout.addWidget(group_files)
+        
+        # Botón de acción
+        btn_merge = QPushButton("🔗 Unir documentos")
+        btn_merge.clicked.connect(self.merge)
+        btn_merge.setMinimumHeight(40)     
+        layout.addWidget(btn_merge)
+
+        layout.addStretch()
+        self.mergeOption.setLayout(layout)
+
+    def tab_foliar(self):
+        """Configurar pestaña de foliado"""
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+
+        # Título
+        titulo = QLabel("🔢 Foliar Documento PDF")
+        titulo.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(titulo)
+
+        # Grupo de selección de archivo
+        group_file = QGroupBox("Archivo de entrada")
+        group_layout = QVBoxLayout()
+
+        # Seleccion de archivo
+        hbox1 = QHBoxLayout()
+        label_select = QLabel("Seleccionar archivo PDF:")
+        label_select.setFont(QFont("Arial",10))        
+        btn_select = QPushButton("📂 Buscar archivo")
+        btn_select.clicked.connect(self.select_file_foliar)
+        hbox1.addWidget(label_select)
+        hbox1.addWidget(btn_select)
+        hbox1.addStretch()
+        group_layout.addLayout(hbox1)
+
+        # mostrar archivo seleccionado
+        hbox2 = QHBoxLayout()
+        hbox2.addWidget(QLabel("Archivo:"))
+        self.lbl_file_foliar = QLabel("Ningún archivo seleccionado")
+        self.lbl_file_foliar.setStyleSheet("color: #666; font-style: italic;")
+        hbox2.addWidget(self.lbl_file_foliar)
+        hbox2.addStretch()
+        group_layout.addLayout(hbox2)
+
+        group_file.setLayout(group_layout)
+        layout.addWidget(group_file)
+
+        # Grupo de configuración de foliado
+        group_config = QGroupBox("Configuración de foliado")
+        config_layout = QVBoxLayout()
+
+        hbox_num = QHBoxLayout()
+        hbox_num.addWidget(QLabel("Número inicial:"))
         self.num_inicio = QLineEdit()
-        botons3_2 = QPushButton("Foliar documento")
-        botons3_2.clicked.connect(self.foliar)
+        self.num_inicio.setPlaceholderText("Ej: 1, 100, etc.")
+        self.num_inicio.setText("1")
+        hbox_num.addWidget(self.num_inicio)
+        config_layout.addLayout(hbox_num)
 
-        layout3_vertical = QVBoxLayout()
-        layouts3_horizon1 = QHBoxLayout()
-        layouts3_horizon2 = QHBoxLayout()
-        layouts3_horizon3 = QHBoxLayout()
+        lbl_info_foliar = QLabel(
+            "El foliado se realizará desde la última pagina hasta la primera.\n"
+            "El número de folio se colocará en la esquina superior derecha."
+        )
+        lbl_info_foliar.setFont(QFont("Arial", 8))
+        lbl_info_foliar.setStyleSheet("color: #666;")
+        config_layout.addWidget(lbl_info_foliar)
 
-        layouts3_horizon1.addWidget(labels3_1)
-        layouts3_horizon1.addWidget(botons3_1)
-        layouts3_horizon2.addWidget(labels3_2)
-        layouts3_horizon2.addWidget(self.labels3_3)
-        layouts3_horizon3.addWidget(labels3_4)
-        layouts3_horizon3.addWidget(self.num_inicio)
+        group_config.setLayout(config_layout)
+        layout.addWidget(group_config)
 
-        layout3_vertical.addWidget(titulo_3)
-        layout3_vertical.addLayout(layouts3_horizon1)
-        layout3_vertical.addLayout(layouts3_horizon2)
-        layout3_vertical.addLayout(layouts3_horizon3)
-        layout3_vertical.addWidget(botons3_2)
+        #boton de acción
+        btn_foliar = QPushButton("🔢 Foliar documento")
+        btn_foliar.clicked.connect(self.foliar)
+        btn_foliar.setMinimumHeight(40)
+        layout.addWidget(btn_foliar)
 
-        self.foliarOpcion.setLayout(layout3_vertical)
+        layout.addStretch()
+        self.foliarOption.setLayout(layout)
 
-    def ventana_about(self):
-        #ventana 4
-        titulo_4 = QLabel("PDF-SUF\n\nVersion 1.0.0\nThis is a sample application made with PyQt6.\n\n"
-                          "Author: Miguel Millones\n"
-                          "Copyright © 2024 Miguel Angel\n\n"
-                          "For more information, visit our website:\n"
-                          "https://github.com/MiguelMillones/proyecto_PDF\n\n"
-                          "License: MIT License\n\n"
-                          "Contact: support@example.com")
-        titulo_4.setFont(QFont("Arial",12))
-        titulo_4.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    def tab_about(self):
+        """Configurar la pestaña de Acerca de"""
+        layout = QVBoxLayout()
+        about_text = QLabel(
+            "📄 DocTriX\n\n"
+            "Version 2.0.0\n\n"
+            "Características:\n"
+            "• Extraer páginas específicas de documentos PDF\n"
+            "• Unir múltiples documentos PDF en uno solo\n"
+            "• Foliar documentos PDF con numeración personalizada\n\n"
+            "Desarrollador: Miguel Millones\n"
+            "Copyright © 2024 Miguel Angel\n\n"
+            "GitHub: https://github.com/MiguelMillones/proyecto_PDF\n"
+            "License: MIT License\n\n"
+            "Contact: miguelmillones22@gmail.com"
+        )
+        about_text.setFont(QFont("Arial",10))
+        about_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        about_text.setWordWrap(True)
 
-        layout_4 = QVBoxLayout()
-        layout_4.addWidget(titulo_4)
+        layout.addStretch()        
+        layout.addWidget(about_text)
 
-        self.aboutOpcion.setLayout(layout_4)
+        self.aboutOption.setLayout(layout)
 
-    def selec_archivo(self):
-        """Función para seleccionar documento PDF"""
+    # ==================== Manejadores de eventos ====================
+
+    def select_file_extract(self):
+        """Seleccionar archivo para extraer páginas"""
         option = QFileDialog.Option.DontUseNativeDialog
-        init_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
-        filetypes = "Archivos PDF (*.pdf);;All files(*)"
-        file_name, _ = QFileDialog.getOpenFileName(self,"Open File",init_dir,filetypes, options=option)
+        init_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        filetypes = "Archivos PDF (*.pdf);;All files (*)"
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,"Open File", init_dir, filetypes, options=option
+        )
 
         if file_name:
-            doc_name = file_name.split("/")
-            self.labels1_1.setText(f'{doc_name[-1]}')
-            self.input_pdf=file_name
-        else:
-            QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
+            self.input_pdf_extract=file_name
+            doc_name = Path(file_name).name
+            self.label_file_extract.setText(doc_name)
+            self.label_file_extract.setStyleSheet("color: #4CAF50; font-weight: bold;")
 
-    def extraer(self):
+    def select_files_merge(self):
+        """Seleccionar archivos para unir"""
+        option = QFileDialog.Option.DontUseNativeDialog
+        init_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        filetypes = "Archivos PDF (*.pdf);;All files(*)"
+        files_name, _ = QFileDialog.getOpenFileNames(
+            self,"Open Files", init_dir, filetypes, options=option
+        )
+
+        if files_name:
+            if len(files_name)>=2:
+                self.files_to_merge = files_name
+
+                # Mostrar lista de archivos
+                doc_name = ""
+                for n, file in enumerate(files_name, 1):
+                    nombre = Path(file).name
+                    doc_name += f"{n}. {nombre}\n"
+                
+                self.lbl_files_merge.setText(doc_name)
+                self.lbl_files_merge.setStyleSheet("color: #4CAF50;")
+                
+            else:
+                QMessageBox.warning(
+                    self, "Advertencia",
+                    "Por favor, selecciona al menos 2 documentos PDF para unir"
+                )
+
+    def select_file_foliar(self):
+        """Seleccionar archivo para foliar"""
+        option = QFileDialog.Option.DontUseNativeDialog
+        init_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        filetypes = "Archivos PDF (*.pdf);;All files (*)"
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,"Open File", init_dir, filetypes, options=option
+        )
+
+        if file_name:
+            self.input_pdf_foliar = file_name
+            doc_name = Path(file_name).name
+            self.lbl_file_foliar.setText(doc_name)
+            self.lbl_file_foliar.setStyleSheet("color: #4CAF50; font-weight: bold;")
+    
+    def extract_pages(self):
         """función para extraer las paginas"""
-        pdf_input = self.input_pdf               # Nombre del doc PDF de entrada
-        name_pdfextraer='Páginas_separadas.pdf'# Nombre del nuevo doc PDF (páginas separadas)
-        paginas_a_extraer = self.pages_sep.text()
-
-        if pdf_input=='':
-            QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
+        # Validaciones
+        if not PDFUtils.validate_pdf_file(self.input_pdf_extract):
+            QMessageBox.critical(
+                self,"Error", "Por favor, selecciona un archivo PDF válido."
+            )
             return
-
-        if paginas_a_extraer==['']:
-            QMessageBox.critical(self, 'Error',
-                                 'Por favor, ingresa al menos una página para extraer.')
+        
+        pages_extract = self.pages_input.text().strip()
+        if not pages_extract:
+            QMessageBox.critical(
+                self, 'Error',
+                'Por favor, ingresa las páginas a extraer.'
+            )
             return
 
         # Verificar que las páginas ingresadas consistan solo en números y comas
-        if not re.match(r'^\d+(,\d+)*$', paginas_a_extraer):
-            QMessageBox.critical(self,'Error',
-                                 'Por favor, ingresa páginas válidas (números separados por comas).')
+        pages = PDFUtils.validate_page_range(pages_extract)
+        if pages is None:
+            QMessageBox.critical(
+                self,"Error",
+                "Formato de páginas inválido.\n\n"
+                "Ejemplos válidos:\n"
+                "• 1,3,5 (páginas individuales)\n"
+                "• 1-5 (rango)\n"
+                "• 1,3-5,7 (combinación)"
+            )
             return
         
-        pdf_output = save_file(self,name_pdfextraer)    # Nombre del nuevo doc PDF
-        if pdf_output is None:
-            QMessageBox.critical(self,'Error','No se guardo el nombre del nuevo documento PDF')
+        # Guardar archivo de salida 
+        pdf_output = SaveFileDialog.get_save_path(self,"Páginas_separadas.pdf")    # Nombre del nuevo doc PDF
+        if not pdf_output:
             return
-
-        paginas_a_extraer = paginas_a_extraer.split(',')
-        paginas_a_extraer = list(map(int,paginas_a_extraer))
-
-        if extraer_paginas(pdf_input,pdf_output,paginas_a_extraer): #llama a la funcion 
-            QMessageBox.information(self, 'Éxito', 'Páginas separadas correctamente!')
-        else:
-            QMessageBox.critical(self, 'Error',
-                                 'Una o más páginas no existen en el archivo seleccionado. Por favor, verifica las páginas ingresadas.')
-
-    def selec_archivos(self):
-        """Función para seleccionar documentos PDF"""
-        option = QFileDialog.Option.DontUseNativeDialog
-        init_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
-        filetypes = "Archivos PDF (*.pdf);;All files(*)"
-        files_name, _ = QFileDialog.getOpenFileNames(self,"Open Files",init_dir,filetypes, options=option)
-
-        if files_name:
-            if len(files_name)>1:
-                doc_name = ''
-                for n in files_name:
-                    ruta = n.split("/")
-                    doc_name = doc_name + ruta[-1]+'\n '
-                self.labels2_3.setText(f'{doc_name}')
-                self.files = files_name
+        
+        try:
+            # Ejecutar extracción
+            if extraer_paginas(self.input_pdf_extract, pdf_output, pages): #llama a la funcion 
+                QMessageBox.information(
+                    self, "Éxito", 
+                    f"✅ Páginas extraídas correctamente!\n\n"
+                    f"Páginas extraídas: {len(pages)}\n"
+                    f"Archivo guardado en:\n{pdf_output}"
+                )
             else:
-                QMessageBox.critical(self,'Error','Por favor, selecciona más de 2 documentos PDF.')
-        else:
-            QMessageBox.critical(self,'Error','!Ningun documento seleccionado! \n Por favor, selecciona más de 2 documentos PDF.')
+                QMessageBox.critical(
+                    self, "Error",
+                    "Algunas páginas no existen en el documento.\n"
+                    "Verifica que las páginas existan en el documento."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error",
+                f"Error al extraer páginas:\n{str(e)}"
+            )
 
-    def unir(self):
-        """función para comprobar archivos"""
-        pdf_inputs = self.files               # Nombre del doc PDF de entrada
-        name_pdfunidos='Documentos_unidos.pdf'# Nombre del archivo PDF (documentos unidos).
-
-        if pdf_inputs == '':
-            QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
+    def merge(self):
+        """Unir documentos PDF"""
+        if len(self.files_to_merge)<2:
+            QMessageBox.critical(
+                self,'Error',
+                "Por favor, selecciona al menos 2 documentos PDF para unir."
+            )
             return
 
-        name_output = save_file(self,name_pdfunidos)        # Nombre del archivo PDF (documentos unidos).
-
-        if name_output is None:
-            QMessageBox.critical(self,'Error','No se guardo el nombre del nuevo documento PDF')
+        # Validar que todos los archivos existan
+        for file in self.files_to_merge:
+            if not PDFUtils.validate_pdf_file(file):
+                QMessageBox.critical(
+                    self, "Error", 
+                    f"El archivo no es válido:\n{file}"
+                )
+                return
+            
+        # Guardar archivo de salida
+        name_output = SaveFileDialog.get_save_path(self, "Documentos_unidos.pdf")
+        if not name_output:
             return
 
-        if unir_pdf(pdf_inputs, name_output):
-            QMessageBox.information(self, 'Éxito', 'Documentos unidos correctamente!')
-        else:
-            QMessageBox.critical(self, 'Error',
-                                 'No se a seleccionado mas de un documento pdf. Por favor, verifica la seleccion.')
-
-    def selec_archivof(self):
-        """Función para seleccionar documento PDF para foliar"""
-        option = QFileDialog.Option.DontUseNativeDialog
-        init_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
-        filetypes = "Archivos PDF (*.pdf);;All files(*)"
-        file_name3, _ = QFileDialog.getOpenFileName(self,"Open File",init_dir,filetypes, options=option)
-
-        if file_name3:
-            doc_name = file_name3.split("/")
-            self.labels3_3.setText(f'{doc_name[-1]}')
-            self.input_pdf3=file_name3
-        else:
-            QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
+        try:
+            # Ejecutar unión
+            if unir_pdf(self.files_to_merge, name_output):
+                QMessageBox.information(
+                    self, "Éxito", 
+                    f"✅ Documentos unidos correctamente!\n\n"
+                    f"Documentos unidos: {len(self.files_to_merge)}\n"
+                    f"Archivo guardado en:\n{name_output}"
+                )
+            else:
+                QMessageBox.critical(
+                    self, "Error",
+                    "No se pudieron unir los documentos. "
+                    "Verifica que todos los archivos sean PDF válidos."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error",
+                f"Error al unir documentos:\n{str(e)}"
+            )
 
     def foliar(self):
-        """función para comprobar y preparar archivos"""
-        pdf_entrada = self.input_pdf3               # Nombre del doc PDF de entrada
-        name_pdffoliar='Páginas_foliadas.pdf'       # Nombre del nuevo doc PDF (páginas foliadas)
-        numero_inicio = self.num_inicio.text()
-
-        if pdf_entrada=='':
-            QMessageBox.critical(self,'Error','Por favor, selecciona un archivo PDF.')
+        """Foliar documento PDF"""
+        # Validaciones
+        if not PDFUtils.validate_pdf_file(self.input_pdf_foliar):
+            QMessageBox.critical(
+                self,"Error",
+                "Por favor, selecciona un archivo PDF válido."
+            )
             return
 
-        if numero_inicio==['']:
-            QMessageBox.critical(self, 'Error',
-                                 'Por favor, ingresa el número de inicio.')
+        # Validar número de incio
+        num_init_text = self.num_inicio.text().strip()
+        init = PDFUtils.validate_positive_integer(num_init_text)
+
+        if init is None:
+            QMessageBox.critical(
+                self, "Error",
+                "Por favor, ingresa un número entero positivo válido (ejemplo: 1, 100)."
+            )
             return
 
-        # Verificar que el digito ingresado sea solo un número
-        if not re.match(r'^\-?[1-9][0-9]*$', numero_inicio):
-            QMessageBox.critical(self,'Error',
-                                 'Por favor, ingresa un número entero (sin decimales).')
+        # Guardar archivo de salida
+        pdf_output = SaveFileDialog.get_save_path(self, "Páginas_foliadas.pdf")
+        if not pdf_output:
             return
 
-        pdf_output3 = save_file(self,name_pdffoliar)    # Nombre del nuevo doc PDF
-        if pdf_output3 is None:
-            QMessageBox.critical(self,'Error','No se guardo el nombre del nuevo documento PDF')
-            return
-
-        if foliar_pdf(pdf_entrada,pdf_output3,int(numero_inicio)):
-            QMessageBox.information(self, 'Éxito', 'Páginas foliadas correctamente!')
-        else:
-            QMessageBox.critical(self, 'Error',
-                                 'No se ha ingresado un número correcto. Por favor, verifica el número.')
+        try:
+            # Ejecutar foliado
+            if foliar_pdf(self.input_pdf_foliar,pdf_output, init):
+                QMessageBox.information(
+                    self, "Éxito",
+                    f"✅ Documento foliado correctamente!\n\n"
+                    f"Número inicial: {init}\n"
+                    f"Archivo guardado en:\n{pdf_output}"
+                )
+            else:
+                QMessageBox.critical(
+                    self, "Error",
+                    "No se pudo foliar el documento. "
+                    "Verifica que el archivo sea un PDF válido."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error",
+                f"Error al foliar documento:\n{str(e)}"
+            )
 
 
 if __name__=='__main__':
     app = QApplication(sys.argv)
+    app.setStyle('Fusion') # Estilo moderno
+
     ventana = Ventana()
     sys.exit(app.exec())

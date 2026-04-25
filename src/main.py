@@ -7,21 +7,29 @@ import os
 from pathlib import Path
 from typing import Optional, List
 
-from PyQt6.QtCore import Qt, QStandardPaths
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtCore import Qt, QStandardPaths, QMimeData
+from PyQt6.QtGui import QFont, QIcon, QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import (
     QApplication, QWidget,QMainWindow,QTabWidget, QLabel, 
     QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
-    QFileDialog,QMessageBox, QTextEdit, QGroupBox
+    QFileDialog, QMessageBox, QTextEdit, QGroupBox,
+    QListWidget, QListWidgetItem, QAbstractItemView, QInputDialog
 )
 
-# módulos PDF
+# importar módulos PDF
 from pdf.extraer import extraer_paginas
 from pdf.unir import unir_pdf
 from pdf.foliar import foliar_pdf
 
 # Importar utilidades de rutas
-from utils.path_utils import ResourcePath, ConfigPaths
+try:
+    from utils.path_utils import ResourcePath, ConfigPaths
+except ImportError:
+    # si no existe el módulo
+    class ResourcePath:
+        @staticmethod
+        def get_asset_path(asset_name):
+            return Path(f"assets/{asset_name}")
 
 
 class PDFUtils:
@@ -99,6 +107,22 @@ class SaveFileDialog:
         )
 
         return save_path if save_path else None
+    
+class DraggableListWidget(QListWidget):
+    """ListWidget personalizada que soporta drag and drop para reordenar"""
+
+    def __int__(self, parent=None):
+        super().__init__(parent)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setDropIndicatorShown(True)
+
+    def dropEvent(self, event: QDropEvent):
+        """Manejar evento de drop para reordenar items"""
+        event.setDropAction(Qt.DropAction.MoveAction)
+        super().dropEvent(event)
 
 class Ventana(QMainWindow):
     """ clase para inicializar y estructurar las ventanas"""
@@ -119,7 +143,7 @@ class Ventana(QMainWindow):
 
     def inicializar(self):
         """función para dar el tamaño y titulo de la ventana principal"""
-        self.setFixedSize(550,450)
+        self.setFixedSize(700,450)
         self.setWindowTitle("DocTriX")
 
         # Configure icono con manejo de rutas para PyInstaller
@@ -370,24 +394,72 @@ class Ventana(QMainWindow):
         group_files = QGroupBox("Archivos a unir")
         files_layout = QVBoxLayout()
 
-        # Botón seleccionar
-        hbox1 = QHBoxLayout()
+        # Barra de botones superior
+        buttons_layout = QHBoxLayout()
+
+        # Botón de seleccionar archivos
         btn_select = QPushButton("📂 Seleccionar archivos")
         btn_select.clicked.connect(self.select_files_merge)
-        hbox1.addWidget(btn_select)
-        hbox1.addStretch()
-        files_layout.addLayout(hbox1)
+        buttons_layout.addWidget(btn_select)
 
-        #  Lista de archivos seleccionados
-        files_layout.addWidget(QLabel("Archivos seleccionados:"))
-        self.lbl_files_merge = QTextEdit()
-        self.lbl_files_merge.setReadOnly(True)
-        self.lbl_files_merge.setMaximumHeight(150)
-        self.lbl_files_merge.setPlaceholderText("No hay archivos seleccionados")
-        files_layout.addWidget(self.lbl_files_merge)
+        # Botón de borrar archivos
+        btn_remove = QPushButton("🗑️ Eliminar seleccionados")
+        btn_remove.setObjectName("danger")
+        btn_remove.setStyleSheet("background-color: #f44336;")
+        btn_remove.clicked.connect(self.remove_selected_files)
+        buttons_layout.addWidget(btn_remove)
+
+        # Botón de limpiar
+        btn_clear_all = QPushButton("🚮 Limpiar todo")
+        btn_clear_all.setObjectName("danger")
+        btn_clear_all.setStyleSheet("background-color: #ff9800;")
+        btn_clear_all.clicked.connect(self.clear_all_files)
+        buttons_layout.addWidget(btn_clear_all)
+
+        buttons_layout.addStretch()
+        files_layout.addLayout(buttons_layout)
+
+        # Información de ordenamiento
+        info_label = QLabel("💡 Arrastra los items para reordenar")
+        info_label.setFont(QFont("Arial", 9))
+        info_label.setStyleSheet("color: #2196F3;")
+        files_layout.addWidget(info_label)
+
+        # Lista de archivos (soporta drag & drop)
+        self.files_list = DraggableListWidget()
+        self.files_list.setMinimumHeight(200)
+        self.files_list.model().rowsMoved.connect(self.on_files_reordered)
+        files_layout.addWidget(self.files_list)
+
+        # Contador de archivos
+        self.counter_label = QLabel("📄 Archivos seleccionados: 0")
+        self.counter_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        files_layout.addWidget(self.counter_label)
 
         group_files.setLayout(files_layout)
         layout.addWidget(group_files)
+
+        # Botones de ordenamiento adicionales
+        order_layout = QHBoxLayout()
+        
+        btn_move_up = QPushButton("⬆️ Subir")
+        btn_move_up.clicked.connect(self.move_selected_up)
+        order_layout.addWidget(btn_move_up)
+        
+        btn_move_down = QPushButton("⬇️ Bajar")
+        btn_move_down.clicked.connect(self.move_selected_down)
+        order_layout.addWidget(btn_move_down)
+        
+        btn_sort_az = QPushButton("🔤 Ordenar A-Z")
+        btn_sort_az.clicked.connect(self.sort_alphabetical)
+        order_layout.addWidget(btn_sort_az)
+        
+        btn_sort_za = QPushButton("🔤 Ordenar Z-A")
+        btn_sort_za.clicked.connect(self.sort_reverse_alphabetical)
+        order_layout.addWidget(btn_sort_za)
+        
+        order_layout.addStretch()
+        layout.addLayout(order_layout)
         
         # Botón de acción
         btn_merge = QPushButton("🔗 Unir documentos")
@@ -490,10 +562,141 @@ class Ventana(QMainWindow):
 
         layout.addStretch()        
         layout.addWidget(about_text)
+        layout.addStretch()
 
         self.aboutOption.setLayout(layout)
 
-    # ==================== Manejadores de eventos ====================
+    # ==================== Funciones de organización de archivos ====================
+
+    def update_file_list_display(self):
+        """Actualizar la visualización de la lista de archivos"""
+        self.files_list.clear()
+        for file_path in self.files_to_merge:
+            nombre = Path(file_path).name
+            item = QListWidgetItem(f"📄 {nombre}")
+            item.setData(Qt.ItemDataRole.UserRole, file_path)
+            item.setToolTip(file_path)
+            self.files_list.addItem(item)
+        
+        # Actualizar contador
+        count = len(self.files_to_merge)
+        self.counter_label.setText(f"📄 Archivos seleccionados: {count}")
+        
+        # Habilitar/deshabilitar botones según cantidad
+        has_items = count > 0
+        for btn in self.findChildren(QPushButton):
+            if btn.text() in ["🗑️ Eliminar seleccionados", "🚮 Limpiar todo", 
+                              "⬆️ Subir", "⬇️ Bajar", "🔤 Ordenar A-Z", "🔤 Ordenar Z-A"]:
+                btn.setEnabled(has_items)
+
+    def select_files_merge(self):
+        """Seleccionar archivos para unir"""
+        option = QFileDialog.Option.DontUseNativeDialog
+        init_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        filetypes = "Archivos PDF (*.pdf);;All files(*)"
+        files_name, _ = QFileDialog.getOpenFileNames(
+            self,"Open Files", init_dir, filetypes, options=option
+        )
+
+        if files_name:
+            for file in files_name:
+                if file not in self.files_to_merge:
+                    self.files_to_merge.append(file)
+            self.update_file_list_display()
+
+    def remove_selected_files(self):
+        """Eliminar archivos seleccionados de la lista"""
+        selected_items = self.files_list.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "Info", "No hay archivos seleccionados para eliminar")
+            return
+        
+        # Confirmar eliminación
+        reply = QMessageBox.question(
+            self, "Confirmar eliminación",
+            f"¿Eliminar {len(selected_items)} archivo(s) de la lista?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            for item in selected_items:
+                file_path = item.data(Qt.ItemDataRole.UserRole)
+                if file_path in self.files_to_merge:
+                    self.files_to_merge.remove(file_path)
+            self.update_file_list_display()
+
+    def clear_all_files(self):
+        """Limpiar todos los archivos de la lista"""
+        if not self.files_to_merge:
+            return
+        
+        reply = QMessageBox.question(
+            self, "Confirmar limpieza",
+            f"¿Eliminar todos los {len(self.files_to_merge)} archivo(s) de la lista?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.files_to_merge.clear()
+            self.update_file_list_display()
+
+    def move_selected_up(self):
+        """Mover elementos seleccionados hacia arriba"""
+        selected_rows = sorted([self.files_list.row(item) for item in self.files_list.selectedItems()])
+        
+        for row in selected_rows:
+            if row > 0:
+                # Intercambiar elementos en la lista
+                self.files_to_merge[row], self.files_to_merge[row - 1] = \
+                    self.files_to_merge[row - 1], self.files_to_merge[row]
+        
+        self.update_file_list_display()
+        # Restaurar selección
+        for row in selected_rows:
+            if row > 0:
+                self.files_list.setCurrentRow(row - 1)
+
+    def move_selected_down(self):
+        """Mover elementos seleccionados hacia abajo"""
+        selected_rows = sorted([self.files_list.row(item) for item in self.files_list.selectedItems()], reverse=True)
+        
+        for row in selected_rows:
+            if row < len(self.files_to_merge) - 1:
+                # Intercambiar elementos en la lista
+                self.files_to_merge[row], self.files_to_merge[row + 1] = \
+                    self.files_to_merge[row + 1], self.files_to_merge[row]
+        
+        self.update_file_list_display()
+        # Restaurar selección
+        for row in selected_rows:
+            if row < len(self.files_to_merge) - 1:
+                self.files_list.setCurrentRow(row + 1)
+
+    def sort_alphabetical(self):
+        """Ordenar archivos alfabéticamente (A-Z)"""
+        self.files_to_merge.sort(key=lambda x: Path(x).name.lower())
+        self.update_file_list_display()
+        QMessageBox.information(self, "Ordenado", "Archivos ordenados alfabéticamente (A-Z)")
+
+    def sort_reverse_alphabetical(self):
+        """Ordenar archivos alfabéticamente inverso (Z-A)"""
+        self.files_to_merge.sort(key=lambda x: Path(x).name.lower(), reverse=True)
+        self.update_file_list_display()
+        QMessageBox.information(self, "Ordenado", "Archivos ordenados alfabéticamente (Z-A)")
+
+    def on_files_reordered(self, parent, start, end, destination, row):
+        """Callback cuando se reordenan archivos con drag & drop"""
+        # La lista ya fue reordenada por Qt, solo actualizamos nuestra lista
+        self.files_to_merge.clear()
+        for i in range(self.files_list.count()):
+            item = self.files_list.item(i)
+            file_path = item.data(Qt.ItemDataRole.UserRole)
+            self.files_to_merge.append(file_path)
+        self.update_file_list_display()
+
+    # ==================== Funciones de extracción ====================
 
     def select_file_extract(self):
         """Seleccionar archivo para extraer páginas"""
@@ -512,53 +715,6 @@ class Ventana(QMainWindow):
             self.label_file_extract.setText(doc_name)
             self.label_file_extract.setStyleSheet("color: #4CAF50; font-weight: bold;")
 
-    def select_files_merge(self):
-        """Seleccionar archivos para unir"""
-        option = QFileDialog.Option.DontUseNativeDialog
-        init_dir = QStandardPaths.writableLocation(
-            QStandardPaths.StandardLocation.DocumentsLocation
-        )
-        filetypes = "Archivos PDF (*.pdf);;All files(*)"
-        files_name, _ = QFileDialog.getOpenFileNames(
-            self,"Open Files", init_dir, filetypes, options=option
-        )
-
-        if files_name:
-            if len(files_name)>=2:
-                self.files_to_merge = files_name
-
-                # Mostrar lista de archivos
-                doc_name = ""
-                for n, file in enumerate(files_name, 1):
-                    nombre = Path(file).name
-                    doc_name += f"{n}. {nombre}\n"
-                
-                self.lbl_files_merge.setText(doc_name)
-                self.lbl_files_merge.setStyleSheet("color: #4CAF50;")
-                
-            else:
-                QMessageBox.warning(
-                    self, "Advertencia",
-                    "Por favor, selecciona al menos 2 documentos PDF para unir"
-                )
-
-    def select_file_foliar(self):
-        """Seleccionar archivo para foliar"""
-        option = QFileDialog.Option.DontUseNativeDialog
-        init_dir = QStandardPaths.writableLocation(
-            QStandardPaths.StandardLocation.DocumentsLocation
-        )
-        filetypes = "Archivos PDF (*.pdf);;All files (*)"
-        file_name, _ = QFileDialog.getOpenFileName(
-            self,"Open File", init_dir, filetypes, options=option
-        )
-
-        if file_name:
-            self.input_pdf_foliar = file_name
-            doc_name = Path(file_name).name
-            self.lbl_file_foliar.setText(doc_name)
-            self.lbl_file_foliar.setStyleSheet("color: #4CAF50; font-weight: bold;")
-    
     def extract_pages(self):
         """función para extraer las paginas"""
         # Validaciones
@@ -614,6 +770,8 @@ class Ventana(QMainWindow):
                 self, "Error",
                 f"Error al extraer páginas:\n{str(e)}"
             )
+    
+    # ==================== Funciones de unión ====================
 
     def merge(self):
         """Unir documentos PDF"""
@@ -639,25 +797,53 @@ class Ventana(QMainWindow):
             return
 
         try:
-            # Ejecutar unión
-            if unir_pdf(self.files_to_merge, name_output):
-                QMessageBox.information(
-                    self, "Éxito", 
-                    f"✅ Documentos unidos correctamente!\n\n"
-                    f"Documentos unidos: {len(self.files_to_merge)}\n"
-                    f"Archivo guardado en:\n{name_output}"
-                )
-            else:
-                QMessageBox.critical(
-                    self, "Error",
-                    "No se pudieron unir los documentos. "
-                    "Verifica que todos los archivos sean PDF válidos."
-                )
+            # Mostrar orden de unión
+            orden = "\n".join([f"{i+1}. {Path(f).name}" for i, f in enumerate(self.files_to_merge)])
+            reply = QMessageBox.question(
+                self, "Confirmar orden",
+                f"Los documentos se unirán en este orden:\n\n{orden}\n\n¿Continuar?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Ejecutar unión
+                if unir_pdf(self.files_to_merge, name_output):
+                    QMessageBox.information(
+                        self, "Éxito", 
+                        f"✅ Documentos unidos correctamente!\n\n"
+                        f"Documentos unidos: {len(self.files_to_merge)}\n"
+                        f"Archivo guardado en:\n{name_output}"
+                    )
+                else:
+                    QMessageBox.critical(
+                        self, "Error",
+                        "No se pudieron unir los documentos. "
+                        "Verifica que todos los archivos sean PDF válidos."
+                    )
         except Exception as e:
             QMessageBox.critical(
                 self, "Error",
                 f"Error al unir documentos:\n{str(e)}"
             )
+        
+    # ==================== Funciones de foliado ====================
+
+    def select_file_foliar(self):
+        """Seleccionar archivo para foliar"""
+        option = QFileDialog.Option.DontUseNativeDialog
+        init_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        filetypes = "Archivos PDF (*.pdf);;All files (*)"
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,"Open File", init_dir, filetypes, options=option
+        )
+
+        if file_name:
+            self.input_pdf_foliar = file_name
+            doc_name = Path(file_name).name
+            self.lbl_file_foliar.setText(doc_name)
+            self.lbl_file_foliar.setStyleSheet("color: #4CAF50; font-weight: bold;")
 
     def foliar(self):
         """Foliar documento PDF"""

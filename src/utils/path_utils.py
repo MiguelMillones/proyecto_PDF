@@ -20,8 +20,8 @@ class ResourcePath:
             # Ejecutable PyInstaller
             return Path(sys._MEIPASS)
         else:
-            # Modo desarrollo
-            return Path(__file__).parent.parent.parent
+            # Modo desarrollo (src/utils/path_utils.py --> subir 2 niveles)
+            return Path(__file__).parent.parent
     
     @staticmethod
     def get_resource_path(relative_path: Union[str, Path]) -> Path:

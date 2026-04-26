@@ -111,7 +111,7 @@ class SaveFileDialog:
 class DraggableListWidget(QListWidget):
     """ListWidget personalizada que soporta drag and drop para reordenar"""
 
-    def __int__(self, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -432,7 +432,7 @@ class Ventana(QMainWindow):
         files_layout.addWidget(self.files_list)
 
         # Contador de archivos
-        self.counter_label = QLabel("📄 Archivos seleccionados: 0")
+        self.counter_label = QLabel("📄 Archivos seleccionados: 0 ")
         self.counter_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         files_layout.addWidget(self.counter_label)
 
@@ -580,8 +580,8 @@ class Ventana(QMainWindow):
         
         # Actualizar contador
         count = len(self.files_to_merge)
-        self.counter_label.setText(f"📄 Archivos seleccionados: {count}")
-        
+        self.counter_label.setText(f"📄 Archivos seleccionados: {count} ")
+         
         # Habilitar/deshabilitar botones según cantidad
         has_items = count > 0
         for btn in self.findChildren(QPushButton):

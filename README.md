@@ -19,7 +19,9 @@
 
 ## 📌 Descripción
 
-DocTriX es una aplicación desarrollada en Python que permite gestionar documentos PDF de manera profesional mediante una interfaz gráfica intuitiva y moderna. Ofrece operaciones esenciales para el manejo de documentos:
+DocTriX es una aplicación desarrollada en Python que permite gestionar documentos PDF de manera 
+profesional mediante una interfaz gráfica intuitiva y moderna. Ofrece operaciones esenciales 
+para el manejo de documentos:
 
 * ✂️ **Separar páginas** - Extrae páginas específicas de documentos PDF
 * 🔗 **Unir documentos** - Combina múltiples PDF en un solo archivo
@@ -346,21 +348,3 @@ Las contribuciones son bienvenidas. Para contribuir:
 
 </div>
 ```
-
-## ✅ **Cambios principales respecto a tu versión anterior**
-
-| Sección | Mejoras |
-|---------|---------|
-| **Encabezado** | Añadidos badges de estado, versión, licencia |
-| **Descripción** | Más detallada y profesional |
-| **Tecnologías** | Tabla con versiones específicas |
-| **Instalación** | Pasos más claros y diferenciados por SO |
-| **Uso** | Instrucciones detalladas para cada función |
-| **Construcción** | ✅ **NUEVO** - Pasos para generar .exe |
-| **Estructura** | Árbol actualizado con src/ |
-| **Solución problemas** | Errores comunes y soluciones |
-| **Mantenimiento** | Comandos de limpieza |
-| **Estadísticas** | Métricas del proyecto |
-
-
-

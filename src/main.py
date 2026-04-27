@@ -455,11 +455,13 @@ class Ventana(QMainWindow):
 
         # Botón de borrar archivos
         btn_remove = QPushButton("🗑️ Eliminar seleccionados")
+        btn_remove.setObjectName("dangerBtn")
         btn_remove.clicked.connect(self.remove_selected_files)
         buttons_layout.addWidget(btn_remove)
 
         # Botón de limpiar
         btn_clear_all = QPushButton("🚮 Limpiar todo")
+        btn_clear_all.setObjectName("warningBtn")
         btn_clear_all.clicked.connect(self.clear_all_files)
         buttons_layout.addWidget(btn_clear_all)
 

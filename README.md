@@ -11,7 +11,9 @@
 
 **Aplicación profesional para manipulación de archivos PDF con interfaz gráfica moderna**
 
-[Características](#-características) • [Instalación](#-instalación) • [Uso](#-uso) • [Construcción](#-construcción-del-ejecutable) • [Estructura](#-estructura-del-proyecto)
+[Características](#-características) • [Instalación](#-instalación) 
+• [Uso](#-uso) • [Construcción](#-construcción-del-ejecutable) 
+• [Estructura](#-estructura-del-proyecto)
 
 </div>
 

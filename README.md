@@ -2,20 +2,7 @@
 ```markdown
 # 📄 DocTriX — Herramienta Profesional de Gestión de Documentos PDF
 
-<div align="center">
-
-![Versión](https://img.shields.io/badge/version-2.1.0-blue)
-![Python](https://img.shields.io/badge/python-3.11.0-green)
-![PyQt6](https://img.shields.io/badge/PyQt6-6.4.2-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-orange)
-
 **Aplicación profesional para manipulación de archivos PDF con interfaz gráfica moderna**
-
-[Características](#-características) • [Instalación](#-instalación) 
-• [Uso](#-uso) • [Construcción](#-construcción-del-ejecutable) 
-• [Estructura](#-estructura-del-proyecto)
-
-</div>
 
 ---
 

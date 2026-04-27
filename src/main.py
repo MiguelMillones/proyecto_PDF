@@ -187,7 +187,7 @@ class Ventana(QMainWindow):
 
     def inicializar(self):
         """función para dar el tamaño y titulo de la ventana principal"""
-        self.setFixedSize(700,600)
+        self.setFixedSize(700,500)
         self.setWindowTitle("DocTriX")
 
         # Configure icono con manejo de rutas para PyInstaller

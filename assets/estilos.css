@@ -1,52 +1,544 @@
-/* - - - - - - - - - - - - - - - - VENTANA PRINCIPAL- - - - - - - */
-QMainWindow {  /* Color de fondo del QMainWindow */
-    padding: 8px;
-    min-width: 5px;
-    min-height: 3px;
-    background-color: #f2f2f2;
-    border: 1px solid #ccc;
-        
+/* ============================================
+   ESTILOS PROFESIONALES MODO DARK PARA DocTriX
+   Aplicación de gestión de documentos PDF
+   Compatible con PyQt6
+   ============================================ */
+
+/* ==================== VARIABLES GLOBALES ==================== */
+/* 
+   Color Scheme Dark Mode:
+   - Primary: #0d7377 (Teal oscuro)
+   - Secondary: #14a085 (Verde azulado)
+   - Success: #00b894 (Verde menta)
+   - Warning: #fdcb6e (Amarillo)
+   - Danger: #ff7675 (Rojo suave)
+   - Dark: #2d3436 (Gris muy oscuro)
+   - Surface: #1e272e (Superficie)
+   - Background: #0f171e (Fondo principal)
+   - Text: #dfe6e9 (Texto claro)
+   - Text Dim: #b2bec3 (Texto tenue)
+*/
+
+/* ==================== VENTANA PRINCIPAL ==================== */
+QMainWindow {
+    background-color: #0f171e;
 }
 
-QTabWidget::pane { /* El marco del QTabWidget */
-    border: 1px solid #ccc; /* Borde del QTabWidget */
-    background: #f2f2f2; /* Color de fondo del QTabWidget */
+/* ==================== TAB WIDGET ==================== */
+QTabWidget::pane {
+    border: 1px solid #2d3436;
+    border-radius: 8px;
+    background-color: #1e272e;
+    margin-top: -1px;
+}
 
+QTabWidget::tab-bar {
+    alignment: center;
 }
 
 QTabBar::tab {
-    background: #dfdddd;  /* Color de fondo de las pestañas */
-    color: rgb(27, 26, 26);  /* Color del texto en las pestañas */
-    padding: 10px;  /* Espaciado dentro de las pestañas */
-    border: none;  /* Borde de las pestañas */
-}
-
-QTabBar::tab:selected {
-    background: #b1d1d6;  /* Color de fondo cuando una pestaña está seleccionada */
-    border-bottom-color: #ccc;  /* Color del borde inferior cuando está seleccionada */
+    background-color: #2d3436;
+    color: #b2bec3;
+    padding: 10px 20px;
+    margin-right: 2px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    font-weight: 500;
+    font-size: 12px;
 }
 
 QTabBar::tab:hover {
-    background: #b1d1d6;  /* Color de fondo cuando el cursor está sobre una pestaña */
+    background-color: #3d454d;
+    color: #dfe6e9;
 }
 
-QPushButton {
-    background-color: #ccc;
-    color: rgb(17, 16, 16);
-    border: none;
-    padding: 6px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 14px;
-    margin: 4px 2px;
-    cursor: pointer;
+QTabBar::tab:selected {
+    background-color: #0d7377;
+    color: #ffffff;
+}
+
+/* ==================== GRUPOS ==================== */
+QGroupBox {
+    font-weight: bold;
+    border: 2px solid #2d3436;
     border-radius: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    background-color: #1e272e;
+    font-size: 12px;
+    color: #dfe6e9;
 }
-QPushButton:hover{
-    background-color: #b3ebcc;
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 15px;
+    padding: 0 8px;
+    color: #0d7377;
+    font-weight: bold;
+    background-color: #1e272e;
 }
+
+/* ==================== BOTONES ==================== */
+QPushButton {
+    background-color: #0d7377;
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 12px;
+    min-height: 20px;
+}
+
+QPushButton:hover {
+    background-color: #14a085;
+    cursor: pointer;
+}
+
+QPushButton:pressed {
+    background-color: #0a5c5f;
+    padding-top: 9px;
+    padding-bottom: 7px;
+}
+
+QPushButton:disabled {
+    background-color: #2d3436;
+    color: #636e72;
+}
+
+/* Botón de peligro (Eliminar) */
+QPushButton#dangerBtn {
+    background-color: #d63031;
+}
+
+QPushButton#dangerBtn:hover {
+    background-color: #ff7675;
+}
+
+QPushButton#dangerBtn:pressed {
+    background-color: #b33939;
+}
+
+/* Botón de advertencia (Limpiar) */
+QPushButton#warningBtn {
+    background-color: #e17055;
+}
+
+QPushButton#warningBtn:hover {
+    background-color: #fdcb6e;
+    color: #2d3436;
+}
+
+QPushButton#warningBtn:pressed {
+    background-color: #d63031;
+}
+
+/* ==================== CAMPOS DE TEXTO ==================== */
+QLineEdit {
+    padding: 8px 12px;
+    border: 1px solid #2d3436;
+    border-radius: 6px;
+    background-color: #121a22;
+    color: #dfe6e9;
+    font-size: 12px;
+    selection-background-color: #0d7377;
+    selection-color: #ffffff;
+}
+
+QLineEdit:focus {
+    border: 2px solid #0d7377;
+    outline: none;
+}
+
+QLineEdit:disabled {
+    background-color: #1e272e;
+    color: #636e72;
+}
+
+QLineEdit::placeholder {
+    color: #636e72;
+}
+
+/* ==================== ETIQUETAS ==================== */
 QLabel {
-    color: #0c0c0c; 
-    font-size: 18px;
+    color: #dfe6e9;
+    font-size: 12px;
 }
+
+QLabel[alignment="AlignHCenter"] {
+    color: #0d7377;
+}
+
+/* Etiquetas informativas */
+QLabel.info-label {
+    color: #b2bec3;
+    font-style: italic;
+    font-size: 11px;
+}
+
+/* ==================== LISTAS ==================== */
+QListWidget {
+    border: 1px solid #2d3436;
+    border-radius: 6px;
+    background-color: #121a22;
+    padding: 4px;
+    outline: none;
+    color: #dfe6e9;
+}
+
+QListWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #2d3436;
+    color: #dfe6e9;
+}
+
+QListWidget::item:hover {
+    background-color: #1e272e;
+}
+
+QListWidget::item:selected {
+    background-color: #0d7377;
+    color: #ffffff;
+}
+
+QListWidget::item:selected:hover {
+    background-color: #14a085;
+}
+
+/* ==================== BARRA DE PROGRESO ==================== */
+QProgressBar {
+    border: 1px solid #2d3436;
+    border-radius: 6px;
+    text-align: center;
+    background-color: #1e272e;
+    height: 25px;
+    font-weight: bold;
+    font-size: 11px;
+    color: #dfe6e9;
+}
+
+QProgressBar::chunk {
+    background-color: #0d7377;
+    border-radius: 5px;
+}
+
+/* Para operaciones largas */
+QProgressBar[longOperation="true"] {
+    height: 30px;
+}
+
+QProgressBar[longOperation="true"]::chunk {
+    background-color: #00b894;
+}
+
+/* ==================== SCROLLBARS ==================== */
+QScrollBar:vertical {
+    border: none;
+    background-color: #121a22;
+    width: 12px;
+    border-radius: 6px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #2d3436;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #0d7377;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background-color: #121a22;
+    height: 12px;
+    border-radius: 6px;
+    margin: 0px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #2d3436;
+    border-radius: 6px;
+    min-width: 20px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #0d7377;
+}
+
+/* ==================== MENSAJES Y DIÁLOGOS ==================== */
+QMessageBox {
+    background-color: #1e272e;
+}
+
+QMessageBox QLabel {
+    color: #dfe6e9;
+    font-size: 12px;
+}
+
+QMessageBox QPushButton {
+    min-width: 80px;
+    padding: 6px 12px;
+}
+
+/* ==================== INPUT DIALOG ==================== */
+QInputDialog {
+    background-color: #1e272e;
+}
+
+QInputDialog QLabel {
+    color: #dfe6e9;
+}
+
+QInputDialog QLineEdit {
+    background-color: #121a22;
+    color: #dfe6e9;
+}
+
+/* ==================== FILE DIALOG ==================== */
+QFileDialog {
+    background-color: #1e272e;
+    color: #dfe6e9;
+}
+
+QFileDialog QListView {
+    background-color: #121a22;
+    color: #dfe6e9;
+}
+
+/* ==================== TOOLTIPS ==================== */
+QToolTip {
+    background-color: #0d7377;
+    color: #ffffff;
+    border: none;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+/* ==================== ESTILOS ADICIONALES ==================== */
+
+/* Para el título principal en cada pestaña */
+QLabel[fontSize="large"] {
+    font-size: 16px;
+    font-weight: bold;
+    color: #0d7377;
+}
+
+/* Grupo de botones de ordenamiento */
+QPushButton[objectName="orderBtn"] {
+    background-color: #2d3436;
+    padding: 6px 12px;
+    font-size: 11px;
+}
+
+QPushButton[objectName="orderBtn"]:hover {
+    background-color: #3d454d;
+}
+
+/* Estilo para el contador de archivos */
+QLabel[counter="true"] {
+    color: #0d7377;
+    font-weight: bold;
+    padding: 5px;
+    background-color: #121a22;
+    border-radius: 4px;
+}
+
+/* Separadores visuales */
+QLabel[separator="true"] {
+    background-color: #2d3436;
+    height: 1px;
+    margin: 10px 0;
+}
+
+/* Estilo para el área de drag & drop */
+QListWidget[dragEnabled="true"] {
+    background-color: #121a22;
+}
+
+QListWidget[dragEnabled="true"]::item:selected {
+    background-color: #0d7377;
+}
+
+/* ==================== ANIMACIONES Y EFECTOS ==================== */
+QPushButton {
+    transition: background-color 0.2s ease;
+}
+
+QTabBar::tab {
+    transition: background-color 0.2s ease;
+}
+
+QListWidget::item {
+    transition: background-color 0.1s ease;
+}
+
+/* ==================== ESTILOS DE ACCESIBILIDAD ==================== */
+QPushButton:focus {
+    outline: 2px solid #0d7377;
+    outline-offset: 2px;
+}
+
+QLineEdit:focus {
+    border-color: #0d7377;
+}
+
+QTabBar::tab:focus {
+    outline: 1px solid #0d7377;
+}
+
+/* ==================== ESTILOS PARA ESTADOS ESPECÍFICOS ==================== */
+
+/* Archivo seleccionado correctamente */
+QLabel[fileSelected="true"] {
+    color: #00b894;
+    font-weight: bold;
+}
+
+/* Archivo con error */
+QLabel[fileError="true"] {
+    color: #ff7675;
+    font-weight: bold;
+}
+
+/* ==================== MENÚS Y CONTEXT MENU ==================== */
+QMenu {
+    background-color: #1e272e;
+    color: #dfe6e9;
+    border: 1px solid #2d3436;
+    border-radius: 6px;
+    padding: 5px;
+}
+
+QMenu::item {
+    padding: 6px 20px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #0d7377;
+    color: #ffffff;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #2d3436;
+    margin: 5px 10px;
+}
+
+/* ==================== COMBO BOX ==================== */
+QComboBox {
+    background-color: #121a22;
+    color: #dfe6e9;
+    border: 1px solid #2d3436;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+QComboBox:hover {
+    border-color: #0d7377;
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #dfe6e9;
+    margin-right: 5px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1e272e;
+    color: #dfe6e9;
+    border: 1px solid #2d3436;
+    selection-background-color: #0d7377;
+}
+
+/* ==================== CHECKBOX ==================== */
+QCheckBox {
+    color: #dfe6e9;
+    font-size: 12px;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid #2d3436;
+    background-color: #121a22;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0d7377;
+    border-color: #0d7377;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #14a085;
+}
+
+/* ==================== RADIO BUTTON ==================== */
+QRadioButton {
+    color: #dfe6e9;
+    font-size: 12px;
+}
+
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 1px solid #2d3436;
+    background-color: #121a22;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #0d7377;
+    border-color: #0d7377;
+}
+
+
+/* ==================== CORRECCIÓN DE FOCO DE BOTONES ==================== */
+/* Eliminar el focus visible de todos los botones después de hacer clic */
+QPushButton:focus {
+    outline: none;
+}
+
+/* Estilo alternativo para focus solo con teclado (accesibilidad) */
+QPushButton:focus-visible {
+    outline: 2px solid #0d7377;
+    outline-offset: 2px;
+}
+
+/* Evitar que los botones mantengan el estado visual de selección */
+QPushButton:checked {
+    background-color: #0d7377;
+}
+
+/* Para botones específicos en tu interfaz */
+QPushButton#dangerBtn:focus {
+    outline: none;
+}
+
+QPushButton#warningBtn:focus {
+    outline: none;
+}
+
+/* Opcional: Cambiar el cursor a pointer para todos los botones */
+QPushButton {
+    cursor: pointer;
+}
+
+/* ==================== FIN DE ESTILOS ==================== */

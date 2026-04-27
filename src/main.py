@@ -7,13 +7,13 @@ import os
 from pathlib import Path
 from typing import Optional, List
 
-from PyQt6.QtCore import Qt, QStandardPaths, QMimeData
+from PyQt6.QtCore import Qt, QStandardPaths, QMimeData, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QIcon, QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import (
     QApplication, QWidget,QMainWindow,QTabWidget, QLabel, 
     QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
     QFileDialog, QMessageBox, QTextEdit, QGroupBox,
-    QListWidget, QListWidgetItem, QAbstractItemView, QInputDialog
+    QListWidget, QListWidgetItem, QAbstractItemView, QInputDialog, QProgressBar
 )
 
 # importar módulos PDF
@@ -31,6 +31,40 @@ except ImportError:
         def get_asset_path(asset_name):
             return Path(f"assets/{asset_name}")
 
+# ==================== CLASES PARA THREADING ====================
+
+class WorkerSignals(QObject):
+    """Señales para comunicación entre threads"""
+    progress = pyqtSignal(int, int, str)
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+class PDFWorker(QThread):
+    """Thread worker para operaciones PDF sin bloquear la UI"""
+    
+    def __init__(self, task_func, *args, **kwargs):
+        super().__init__()
+        self.task_func = task_func
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+        
+    def run(self):
+        """Ejecutar la tarea en segundo plano"""
+        try:
+            def progress_callback(current, total, message=""):
+                self.signals.progress.emit(current, total, message)
+            
+            result = self.task_func(
+                *self.args,
+                callback_progreso=progress_callback,
+                **self.kwargs
+            )
+            self.signals.finished.emit(result)
+        except Exception as e:
+            self.signals.error.emit(str(e))
+
+# ==================== CLASES DE UTILIDAD ====================
 
 class PDFUtils:
     """Clase para operaciones comunes con PDF"""
@@ -61,6 +95,8 @@ class PDFUtils:
                 # Rango de páginas
                 try:
                     start, end = map(int, part.split('-'))
+                    if start == 0 or end == 0:
+                        return None
                     if start > end:
                         start, end = end, start
                     pages.update(range(start, end + 1))
@@ -69,7 +105,10 @@ class PDFUtils:
             else:
                 # Página individual
                 try:
+                    if int(part) == 0:
+                        return None
                     pages.add(int(part))
+
                 except ValueError:
                     return None
 
@@ -124,6 +163,8 @@ class DraggableListWidget(QListWidget):
         event.setDropAction(Qt.DropAction.MoveAction)
         super().dropEvent(event)
 
+# ==================== CLASE PRINCIPAL ====================
+
 class Ventana(QMainWindow):
     """ clase para inicializar y estructurar las ventanas"""
 
@@ -135,6 +176,9 @@ class Ventana(QMainWindow):
         self.input_pdf_foliar: Optional[str] = None
         self.files_to_merge: List[str] = []
 
+        # Variables para threading
+        self.current_worker: Optional[PDFWorker] = None
+
         # initialize UI
         self.inicializar()
 
@@ -143,7 +187,7 @@ class Ventana(QMainWindow):
 
     def inicializar(self):
         """función para dar el tamaño y titulo de la ventana principal"""
-        self.setFixedSize(700,450)
+        self.setFixedSize(700,600)
         self.setWindowTitle("DocTriX")
 
         # Configure icono con manejo de rutas para PyInstaller
@@ -206,9 +250,7 @@ class Ventana(QMainWindow):
     def _get_default_styles(self) -> str:
         """Estilos por defecto de la aplicación"""
         return """
-            QMainWindow {
-                background-color: #f0f0f0;
-            }
+            QMainWindow { background-color: #f0f0f0; }
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
@@ -217,23 +259,13 @@ class Ventana(QMainWindow):
                 border-radius: 4px;
                 font-weight: bold;
             }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
+            QPushButton:hover { background-color: #45a049; }
             QLineEdit {
                 padding: 5px;
                 border: 1px solid #ccc;
                 border-radius: 3px;
             }
-            QLineEdit:focus {
-                border: 1px solid #4CAF50;
-            }
-            QLabel {
-                color: #333;
-            }
+            QLabel { color: #333; }
             QGroupBox {
                 font-weight: bold;
                 border: 1px solid #ccc;
@@ -246,10 +278,7 @@ class Ventana(QMainWindow):
                 left: 10px;
                 padding: 0 5px;
             }
-            QTabWidget::pane {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
+            QTabWidget::pane { border: 1px solid #ccc; border-radius: 4px; }
             QTabBar::tab {
                 padding: 8px 16px;
                 margin-right: 2px;
@@ -258,34 +287,45 @@ class Ventana(QMainWindow):
                 background-color: #4CAF50;
                 color: white;
             }
-            QTabBar::tab:hover:!selected {
-                background-color: #e0e0e0;
-            }
             QProgressBar {
                 border: 1px solid #ccc;
                 border-radius: 3px;
                 text-align: center;
+                height: 25px;
             }
             QProgressBar::chunk {
                 background-color: #4CAF50;
                 border-radius: 3px;
             }
-            QTextEdit {
+            QListWidget {
                 border: 1px solid #ccc;
                 border-radius: 3px;
-                padding: 4px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:selected {
+                background-color: #4CAF50;
+                color: white;
             }
         """
+
+    def _set_buttons_enabled(self, enabled: bool):
+        """Habilitar/deshabilitar botones durante procesamiento"""
+        for btn in self.findChildren(QPushButton):
+            btn.setEnabled(enabled)
 
     def generarventanas(self):
         """Crear las pestañas de la aplicación"""
         tab_option=QTabWidget(self)
 
         # Crear widgets para cada pestaña
-        self.extractOption=QWidget()
-        self.mergeOption=QWidget()
-        self.foliarOption=QWidget()
-        self.aboutOption=QWidget()
+        self.extractOption = QWidget()
+        self.mergeOption = QWidget()
+        self.foliarOption = QWidget()
+        self.aboutOption = QWidget()
 
         # Configurar pestañas
         self.tab_extract()
@@ -306,8 +346,8 @@ class Ventana(QMainWindow):
         contenedor_tab = QWidget()              #se crea un Widget para QmainWindow
         contenedor_tab.setLayout(layout_principal)
         self.setCentralWidget(contenedor_tab)
-        
-        #ventana 1
+           
+    # ==================== Pestaña de Extracción ====================
     def tab_extract(self):
         """Configurar pestaña de extracción"""
         layout = QVBoxLayout()
@@ -369,6 +409,16 @@ class Ventana(QMainWindow):
 
         group_pages.setLayout(pages_layout)
         layout.addWidget(group_pages)
+
+        # Barra de progreso
+        self.progress_bar_extract = QProgressBar()
+        self.progress_bar_extract.setVisible(False)
+        layout.addWidget(self.progress_bar_extract)
+        
+        self.progress_label_extract = QLabel("")
+        self.progress_label_extract.setVisible(False)
+        self.progress_label_extract.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.progress_label_extract)
         
         # Botón de extraer
         btn_extract = QPushButton("✅ Extraer páginas")
@@ -379,6 +429,7 @@ class Ventana(QMainWindow):
         layout.addStretch()        
         self.extractOption.setLayout(layout) #asignar layout a ventana extraer
 
+    # ==================== Pestaña de Unión ====================
     def tab_merge(self):
         """Configurar pestaña de unión"""
         layout = QVBoxLayout()
@@ -404,15 +455,11 @@ class Ventana(QMainWindow):
 
         # Botón de borrar archivos
         btn_remove = QPushButton("🗑️ Eliminar seleccionados")
-        btn_remove.setObjectName("danger")
-        btn_remove.setStyleSheet("background-color: #f44336;")
         btn_remove.clicked.connect(self.remove_selected_files)
         buttons_layout.addWidget(btn_remove)
 
         # Botón de limpiar
         btn_clear_all = QPushButton("🚮 Limpiar todo")
-        btn_clear_all.setObjectName("danger")
-        btn_clear_all.setStyleSheet("background-color: #ff9800;")
         btn_clear_all.clicked.connect(self.clear_all_files)
         buttons_layout.addWidget(btn_clear_all)
 
@@ -460,6 +507,16 @@ class Ventana(QMainWindow):
         
         order_layout.addStretch()
         layout.addLayout(order_layout)
+
+        # Barra de progreso
+        self.progress_bar_merge = QProgressBar()
+        self.progress_bar_merge.setVisible(False)
+        layout.addWidget(self.progress_bar_merge)
+        
+        self.progress_label_merge = QLabel("")
+        self.progress_label_merge.setVisible(False)
+        self.progress_label_merge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.progress_label_merge)
         
         # Botón de acción
         btn_merge = QPushButton("🔗 Unir documentos")
@@ -469,6 +526,8 @@ class Ventana(QMainWindow):
 
         layout.addStretch()
         self.mergeOption.setLayout(layout)
+
+    # ==================== Pestaña de Foliado ====================
 
     def tab_foliar(self):
         """Configurar pestaña de foliado"""
@@ -531,6 +590,16 @@ class Ventana(QMainWindow):
         group_config.setLayout(config_layout)
         layout.addWidget(group_config)
 
+        # Agregar barra de progreso
+        self.progress_bar_foliar = QProgressBar()
+        self.progress_bar_foliar.setVisible(False)
+        layout.addWidget(self.progress_bar_foliar)
+        
+        self.progress_label_foliar = QLabel("")
+        self.progress_label_foliar.setVisible(False)
+        self.progress_label_foliar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.progress_label_foliar)
+
         #boton de acción
         btn_foliar = QPushButton("🔢 Foliar documento")
         btn_foliar.clicked.connect(self.foliar)
@@ -539,6 +608,8 @@ class Ventana(QMainWindow):
 
         layout.addStretch()
         self.foliarOption.setLayout(layout)
+
+    # ==================== Pestaña Acerca De ====================
 
     def tab_about(self):
         """Configurar la pestaña de Acerca de"""
@@ -581,13 +652,6 @@ class Ventana(QMainWindow):
         # Actualizar contador
         count = len(self.files_to_merge)
         self.counter_label.setText(f"📄 Archivos seleccionados: {count} ")
-         
-        # Habilitar/deshabilitar botones según cantidad
-        has_items = count > 0
-        for btn in self.findChildren(QPushButton):
-            if btn.text() in ["🗑️ Eliminar seleccionados", "🚮 Limpiar todo", 
-                              "⬆️ Subir", "⬇️ Bajar", "🔤 Ordenar A-Z", "🔤 Ordenar Z-A"]:
-                btn.setEnabled(has_items)
 
     def select_files_merge(self):
         """Seleccionar archivos para unir"""
@@ -653,10 +717,6 @@ class Ventana(QMainWindow):
                     self.files_to_merge[row - 1], self.files_to_merge[row]
         
         self.update_file_list_display()
-        # Restaurar selección
-        for row in selected_rows:
-            if row > 0:
-                self.files_list.setCurrentRow(row - 1)
 
     def move_selected_down(self):
         """Mover elementos seleccionados hacia abajo"""
@@ -669,10 +729,6 @@ class Ventana(QMainWindow):
                     self.files_to_merge[row + 1], self.files_to_merge[row]
         
         self.update_file_list_display()
-        # Restaurar selección
-        for row in selected_rows:
-            if row < len(self.files_to_merge) - 1:
-                self.files_list.setCurrentRow(row + 1)
 
     def sort_alphabetical(self):
         """Ordenar archivos alfabéticamente (A-Z)"""
@@ -710,7 +766,7 @@ class Ventana(QMainWindow):
         )
 
         if file_name:
-            self.input_pdf_extract=file_name
+            self.input_pdf_extract = file_name
             doc_name = Path(file_name).name
             self.label_file_extract.setText(doc_name)
             self.label_file_extract.setStyleSheet("color: #4CAF50; font-weight: bold;")
@@ -746,30 +802,17 @@ class Ventana(QMainWindow):
             return
         
         # Guardar archivo de salida 
-        pdf_output = SaveFileDialog.get_save_path(self,"Páginas_separadas.pdf")    # Nombre del nuevo doc PDF
+        pdf_output = SaveFileDialog.get_save_path(self,"Páginas_extraidas.pdf")    # Nombre del nuevo doc PDF
         if not pdf_output:
             return
         
-        try:
-            # Ejecutar extracción
-            if extraer_paginas(self.input_pdf_extract, pdf_output, pages): #llama a la funcion 
-                QMessageBox.information(
-                    self, "Éxito", 
-                    f"✅ Páginas extraídas correctamente!\n\n"
-                    f"Páginas extraídas: {len(pages)}\n"
-                    f"Archivo guardado en:\n{pdf_output}"
-                )
-            else:
-                QMessageBox.critical(
-                    self, "Error",
-                    "Algunas páginas no existen en el documento.\n"
-                    "Verifica que las páginas existan en el documento."
-                )
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Error",
-                f"Error al extraer páginas:\n{str(e)}"
-            )
+        self._ejecutar_operacion(
+            task_func=extraer_paginas,
+            args=(self.input_pdf_extract, pdf_output, pages),
+            progress_bar=self.progress_bar_extract,
+            progress_label=self.progress_label_extract,
+            success_msg=f"✅ Páginas extraídas correctamente!\n\nPáginas extraídas: {len(pages)}\nArchivo guardado en:\n{pdf_output}"
+        )
     
     # ==================== Funciones de unión ====================
 
@@ -796,35 +839,24 @@ class Ventana(QMainWindow):
         if not name_output:
             return
 
-        try:
-            # Mostrar orden de unión
-            orden = "\n".join([f"{i+1}. {Path(f).name}" for i, f in enumerate(self.files_to_merge)])
-            reply = QMessageBox.question(
-                self, "Confirmar orden",
-                f"Los documentos se unirán en este orden:\n\n{orden}\n\n¿Continuar?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
+        # Confirmar orden
+        orden = "\n".join([f"{i+1}. {Path(f).name}" for i, f in enumerate(self.files_to_merge)])
+        reply = QMessageBox.question(
+            self, "Confirmar orden",
+            f"Los documentos se unirán en este orden:\n\n{orden}\n\n¿Continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
 
-            if reply == QMessageBox.StandardButton.Yes:
-                # Ejecutar unión
-                if unir_pdf(self.files_to_merge, name_output):
-                    QMessageBox.information(
-                        self, "Éxito", 
-                        f"✅ Documentos unidos correctamente!\n\n"
-                        f"Documentos unidos: {len(self.files_to_merge)}\n"
-                        f"Archivo guardado en:\n{name_output}"
-                    )
-                else:
-                    QMessageBox.critical(
-                        self, "Error",
-                        "No se pudieron unir los documentos. "
-                        "Verifica que todos los archivos sean PDF válidos."
-                    )
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Error",
-                f"Error al unir documentos:\n{str(e)}"
-            )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self._ejecutar_operacion(
+            task_func=unir_pdf,
+            args=(self.files_to_merge, name_output),
+            progress_bar=self.progress_bar_merge,
+            progress_label=self.progress_label_merge,
+            success_msg=f"✅ Documentos unidos correctamente!\n\nDocumentos unidos: {len(self.files_to_merge)}\nArchivo guardado en:\n{name_output}"
+        )
         
     # ==================== Funciones de foliado ====================
 
@@ -862,7 +894,7 @@ class Ventana(QMainWindow):
         if init is None:
             QMessageBox.critical(
                 self, "Error",
-                "Por favor, ingresa un número entero positivo válido (ejemplo: 1, 100)."
+                "Por favor, ingresa un número positivo y mayor que 0..."
             )
             return
 
@@ -871,26 +903,113 @@ class Ventana(QMainWindow):
         if not pdf_output:
             return
 
+        self._ejecutar_operacion(
+            task_func=foliar_pdf,
+            args=(self.input_pdf_foliar, pdf_output, init),
+            progress_bar=self.progress_bar_foliar,
+            progress_label=self.progress_label_foliar,
+            success_msg=f"✅ Documento foliado correctamente!\n\nNúmero inicial: {init}\nArchivo guardado en:\n{pdf_output}"
+        )
+
+    # ==================== Función genérica para ejecutar operaciones ====================
+
+    def _ejecutar_operacion(self, task_func, args, progress_bar, progress_label, success_msg):
+        """
+        Ejecuta una operación en un thread separado con barra de progreso
+        """
+        # Verificar que los widgets aún existen
+        if progress_bar is None or progress_label is None:
+            QMessageBox.critical(self, "Error", "Error interno: widgets de progreso no disponibles")
+            return
+        
+        # Crear worker
+        self.current_worker = PDFWorker(task_func, *args)
+        
+        # Conectar señales
+        self.current_worker.signals.progress.connect(
+            lambda c, t, m: self._actualizar_progreso(progress_bar, progress_label, c, t, m)
+        )
+        self.current_worker.signals.finished.connect(
+            lambda r: self._operacion_finalizada(r, success_msg, progress_bar, progress_label)
+        )
+        self.current_worker.signals.error.connect(
+            lambda e: self._operacion_error(e, progress_bar, progress_label)
+        )
+        
+        # Deshabilitar botones y mostrar progreso
+        self._set_buttons_enabled(False)
+        
+        # Verificar que los widgets existen antes de usarlos
+        if progress_bar:
+            progress_bar.setValue(0)
+            progress_bar.setVisible(True)
+        if progress_label:
+            progress_label.setText("Iniciando...")
+            progress_label.setVisible(True)
+        
+        # Iniciar worker
+        self.current_worker.start()
+
+    def _actualizar_progreso(self, progress_bar, progress_label, current, total, message):
+        """Actualizar barra de progreso de forma segura"""
+        # Verificar que los widgets aún existen
+        if progress_bar is None:
+            return
+        
         try:
-            # Ejecutar foliado
-            if foliar_pdf(self.input_pdf_foliar,pdf_output, init):
-                QMessageBox.information(
-                    self, "Éxito",
-                    f"✅ Documento foliado correctamente!\n\n"
-                    f"Número inicial: {init}\n"
-                    f"Archivo guardado en:\n{pdf_output}"
-                )
-            else:
-                QMessageBox.critical(
-                    self, "Error",
-                    "No se pudo foliar el documento. "
-                    "Verifica que el archivo sea un PDF válido."
-                )
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Error",
-                f"Error al foliar documento:\n{str(e)}"
-            )
+            if total > 0:
+                percentage = int((current / total) * 100)
+                progress_bar.setValue(percentage)
+                progress_bar.setFormat(f"{percentage}% - {current}/{total}")
+            
+            if progress_label and message:
+                progress_label.setText(message)
+        except RuntimeError:
+            # Widget fue eliminado, ignorar
+            pass
+
+    def _operacion_finalizada(self, result, success_msg, progress_bar, progress_label):
+        """Manejar finalización de operación"""
+        # Restaurar UI
+        self._set_buttons_enabled(True)
+        
+        # Ocultar barra de progreso
+        try:
+            if progress_bar:
+                progress_bar.setVisible(False)
+                progress_bar.setValue(0)
+            if progress_label:
+                progress_label.setText("")
+                progress_label.setVisible(False)
+        except RuntimeError:
+            # Widget fue eliminado, ignorar
+            pass
+        
+        # Limpiar worker
+        self.current_worker = None
+        
+        # Mostrar resultado
+        if result:
+            QMessageBox.information(self, "Éxito", success_msg)
+        else:
+            QMessageBox.critical(self, "Error", "Ocurrió un error durante el proceso")
+
+    def _operacion_error(self, error_msg, progress_bar, progress_label):
+        """Manejar error en operación"""
+        self._set_buttons_enabled(True)
+        
+        try:
+            if progress_bar:
+                progress_bar.setVisible(False)
+                progress_bar.setValue(0)
+            if progress_label:
+                progress_label.setText("")
+                progress_label.setVisible(False)
+        except RuntimeError:
+            pass
+        
+        self.current_worker = None
+        QMessageBox.critical(self, "Error", f"Error: {error_msg}")
 
 
 if __name__=='__main__':

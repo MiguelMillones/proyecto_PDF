@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Optional, Union
 
+
 class ResourcePath:
     """Manejador de rutas para recursos en aplicaciones empaquetadas"""
     
@@ -13,27 +14,20 @@ class ResourcePath:
     def get_base_path() -> Path:
         """
         Obtiene la ruta base de la aplicación
-        - En desarrollo: Directorio del script
+        - En desarrollo: Directorio del proyecto (raíz)
         - En ejecutable: Directorio temporal _MEIPASS
         """
         if getattr(sys, 'frozen', False):
             # Ejecutable PyInstaller
             return Path(sys._MEIPASS)
         else:
-            # Modo desarrollo (src/utils/path_utils.py --> subir 2 niveles)
-            return Path(__file__).parent.parent
+            # Modo desarrollo - src/utils/path_utils.py
+            # Subimos 2 niveles para llegar a la raíz del proyecto
+            return Path(__file__).parent.parent.parent
     
     @staticmethod
     def get_resource_path(relative_path: Union[str, Path]) -> Path:
-        """
-        Obtiene la ruta absoluta de un recurso
-        
-        Args:
-            relative_path: Ruta relativa desde la raíz del proyecto
-            
-        Returns:
-            Path: Ruta absoluta del recurso
-        """
+        """Obtiene la ruta absoluta de un recurso"""
         base_path = ResourcePath.get_base_path()
         return base_path / relative_path
     
@@ -53,12 +47,7 @@ class ConfigPaths:
     
     @staticmethod
     def get_user_data_dir(app_name: str = "DocTriX") -> Path:
-        """
-        Obtiene el directorio de datos del usuario
-        - Windows: %APPDATA%/DocTriX
-        - Linux: ~/.config/DocTriX
-        - macOS: ~/Library/Application Support/DocTriX
-        """
+        """Obtiene el directorio de datos del usuario según el SO"""
         if sys.platform == 'win32':
             base = Path(os.environ.get('APPDATA', Path.home() / 'AppData/Roaming'))
         elif sys.platform == 'darwin':
@@ -74,22 +63,10 @@ class ConfigPaths:
     def get_temp_dir() -> Path:
         """Obtiene el directorio temporal para la aplicación"""
         if getattr(sys, 'frozen', False):
-            # En ejecutable, usar directorio temporal del sistema
             import tempfile
             temp_dir = Path(tempfile.gettempdir()) / "DocTriX"
         else:
-            # En desarrollo, usar directorio local
             temp_dir = Path(__file__).parent.parent.parent / "temp"
         
         temp_dir.mkdir(parents=True, exist_ok=True)
         return temp_dir
-    
-    @staticmethod
-    def get_recent_files_path() -> Path:
-        """Obtiene la ruta para el archivo de archivos recientes"""
-        return ConfigPaths.get_user_data_dir() / "recent_files.json"
-    
-    @staticmethod
-    def get_config_path() -> Path:
-        """Obtiene la ruta para el archivo de configuración"""
-        return ConfigPaths.get_user_data_dir() / "config.json"

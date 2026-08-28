@@ -618,7 +618,7 @@ class Ventana(QMainWindow):
         layout = QVBoxLayout()
         about_text = QLabel(
             "📄 DocTriX\n\n"
-            "Version 2.0.0\n\n"
+            "Version 1.0.0\n\n"
             "Características:\n"
             "• Extraer páginas específicas de documentos PDF\n"
             "• Unir múltiples documentos PDF en uno solo\n"

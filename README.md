@@ -328,7 +328,7 @@ Las contribuciones son bienvenidas. Para contribuir:
 
 | Métrica | Valor |
 |---------|-------|
-| Versión | 2.1.0 |
+| Versión | 1.0.0 |
 | Tamaño ejecutable (Windows) | ~81 MB |
 | Líneas de código | ~1,500 |
 | Tiempo de desarrollo | ~3 meses |
